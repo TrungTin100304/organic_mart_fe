@@ -1,0 +1,114 @@
+@import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap');
+@import "tailwindcss";
+
+@theme {
+  --font-sans: "Plus Jakarta Sans", ui-sans-serif, system-ui, sans-serif;
+
+  --color-surface: #f8fbe5;
+  --color-surface-dim: #d9dcc6;
+  --color-surface-bright: #f8fbe5;
+  --color-surface-container-lowest: #ffffff;
+  --color-surface-container-low: #f2f6df;
+  --color-surface-container: #edf0d9;
+  --color-surface-container-high: #e7ead4;
+  --color-surface-container-highest: #e1e5ce;
+  --color-on-surface: #191d0f;
+  --color-on-surface-variant: #434936;
+  --color-inverse-surface: #2e3223;
+  --color-inverse-on-surface: #eff3dc;
+  --color-outline: #737a64;
+  --color-outline-variant: #c3c9b0;
+  
+  --color-primary: #486800;
+  --color-on-primary: #ffffff;
+  --color-primary-container: #80b400;
+  --color-on-primary-container: #2c4100;
+  --color-inverse-primary: #a1d834;
+  
+  --color-secondary: #456800;
+  --color-on-secondary: #ffffff;
+  --color-secondary-container: #c3f27b;
+  --color-on-secondary-container: #4a6f00;
+  
+  --color-tertiary: #5c6058;
+  --color-on-tertiary: #ffffff;
+  --color-tertiary-container: #a2a69d;
+  --color-on-tertiary-container: #383c35;
+
+  --color-primary-fixed: #bcf54f;
+  --color-primary-fixed-dim: #a1d834;
+  --color-on-primary-fixed: #131f00;
+  --color-on-primary-fixed-variant: #364e00;
+
+  --color-secondary-fixed: #c3f27b;
+  --color-secondary-fixed-dim: #a8d562;
+  --color-on-secondary-fixed: #121f00;
+  --color-on-secondary-fixed-variant: #334f00;
+
+  --color-tertiary-fixed: #e0e4da;
+  --color-tertiary-fixed-dim: #c4c8be;
+  --color-on-tertiary-fixed: #191d17;
+  --color-on-tertiary-fixed-variant: #444841;
+
+  --spacing-margin-mobile: 16px;
+  --spacing-stack-sm: 8px;
+  --spacing-stack-md: 16px;
+  --spacing-gutter: 24px;
+  --spacing-stack-lg: 32px;
+  --spacing-margin-desktop: 40px;
+  --spacing-container-max: 1280px;
+
+  --font-headline-lg: "Plus Jakarta Sans";
+  --font-headline-md: "Plus Jakarta Sans";
+  --font-body-lg: "Plus Jakarta Sans";
+  --font-body-md: "Plus Jakarta Sans";
+  --font-label-lg: "Plus Jakarta Sans";
+  --font-price-display: "Plus Jakarta Sans";
+}
+
+@utility text-headline-lg {
+  font-size: 32px;
+  line-height: 40px;
+  letter-spacing: -0.02em;
+  font-weight: 700;
+}
+
+@utility text-headline-md {
+  font-size: 20px;
+  line-height: 28px;
+  font-weight: 600;
+}
+
+@utility text-body-lg {
+  font-size: 16px;
+  line-height: 24px;
+  font-weight: 400;
+}
+
+@utility text-body-md {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 400;
+}
+
+@utility text-label-lg {
+  font-size: 14px;
+  line-height: 20px;
+  font-weight: 600;
+}
+
+@utility text-price-display {
+  font-size: 18px;
+  line-height: 24px;
+  font-weight: 700;
+}
+
+@layer base {
+  body {
+    @apply bg-surface text-on-surface font-sans;
+  }
+}
+
+.markdown-body {
+  @apply text-on-surface leading-relaxed;
+}
