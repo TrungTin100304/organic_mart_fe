@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
-import { ChevronRight, Truck, CreditCard, MapPin, Phone, User, ShoppingBag, Lock, ShieldCheck } from "lucide-react";
-import { PRODUCTS } from "@/src/types";
+import { ChevronRight, Truck, CreditCard, MapPin, Phone, User, Lock, ShieldCheck } from "lucide-react";
+import { PRODUCTS } from "@/types/index";
 import { motion } from "motion/react";
 
 const fadeIn = {
@@ -23,7 +23,7 @@ export default function Checkout() {
     <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
       <motion.nav 
         {...fadeIn}
-        className="flex items-center gap-2 mb-10 text-on-surface-variant text-sm font-medium"
+        className="flex items-center gap-2 mb-6 md:mb-10 text-on-surface-variant text-sm font-medium"
       >
         <Link to="/cart" className="hover:text-primary transition-colors">Giỏ hàng</Link>
         <ChevronRight className="size-4" />
@@ -38,15 +38,15 @@ export default function Checkout() {
           variants={staggerContainer}
           initial="initial"
           animate="animate"
-          className="lg:col-span-7 space-y-10 focus-within:z-10"
+          className="lg:col-span-7 space-y-6 md:space-y-10 focus-within:z-10"
         >
-          <motion.section variants={fadeIn} className="bg-white p-8 md:p-10 rounded-3xl border border-outline-variant shadow-sm relative overflow-hidden">
+          <motion.section variants={fadeIn} className="bg-white p-6 md:p-10 rounded-3xl border border-outline-variant shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1.5 h-full bg-primary" />
-            <h2 className="text-2xl font-bold mb-8 flex items-center gap-3 text-primary tracking-tight">
+            <h2 className="text-xl md:text-2xl font-bold mb-6 md:mb-8 flex items-center gap-3 text-primary tracking-tight">
               <MapPin className="size-6" />
               Thông tin giao hàng
             </h2>
-            <form className="grid grid-cols-1 md:grid-cols-2 gap-6">
+            <form className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
               <div className="md:col-span-2">
                 <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 ml-1">Họ và tên</label>
                 <div className="relative">
@@ -72,43 +72,43 @@ export default function Checkout() {
             </form>
           </motion.section>
 
-          <motion.section variants={fadeIn} className="bg-white p-8 md:p-10 rounded-3xl border border-outline-variant shadow-sm relative overflow-hidden">
+          <motion.section variants={fadeIn} className="bg-white p-6 md:p-10 rounded-3xl border border-outline-variant shadow-sm relative overflow-hidden">
              <div className="absolute top-0 left-0 w-1.5 h-full bg-primary/40" />
-            <h2 className="text-2xl font-bold mb-8 flex items-center gap-3 text-primary tracking-tight">
+            <h2 className="text-xl md:text-2xl font-bold mb-6 md:mb-8 flex items-center gap-3 text-primary tracking-tight">
               <Truck className="size-6" />
               Phương thức vận chuyển
             </h2>
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <label className="relative flex items-center p-6 border-2 border-primary rounded-2xl cursor-pointer bg-primary-container/5 transition-all group ring-1 ring-primary/20">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
+              <label className="relative flex items-center p-4 md:p-6 border-2 border-primary rounded-2xl cursor-pointer bg-primary-container/5 transition-all group ring-1 ring-primary/20">
                 <input checked className="size-5 text-primary border-outline-variant focus:ring-primary" name="shipping" type="radio" value="standard" />
-                <div className="ml-5">
+                <div className="ml-4 md:ml-5">
                   <span className="block font-bold text-on-surface">Giao hàng tiêu chuẩn</span>
                   <span className="text-xs font-medium text-on-surface-variant">3-5 ngày làm việc</span>
                 </div>
-                <span className="ml-auto font-bold text-primary">20.000đ</span>
+                <span className="ml-auto font-bold text-primary text-sm md:text-base">20.000đ</span>
               </label>
-              <label className="relative flex items-center p-6 border border-outline-variant rounded-2xl cursor-pointer hover:bg-surface-container-low transition-all group">
+              <label className="relative flex items-center p-4 md:p-6 border border-outline-variant rounded-2xl cursor-pointer hover:bg-surface-container-low transition-all group">
                 <input className="size-5 text-primary border-outline-variant focus:ring-primary" name="shipping" type="radio" value="express" />
-                <div className="ml-5">
+                <div className="ml-4 md:ml-5">
                   <span className="block font-bold text-on-surface">Giao hàng hỏa tốc</span>
                   <span className="text-xs font-medium text-on-surface-variant">Nhận hàng trong ngày</span>
                 </div>
-                <span className="ml-auto font-bold">50.000đ</span>
+                <span className="ml-auto font-bold text-sm md:text-base">50.000đ</span>
               </label>
             </div>
           </motion.section>
 
-          <motion.section variants={fadeIn} className="bg-white p-8 md:p-10 rounded-3xl border border-outline-variant shadow-sm relative overflow-hidden">
+          <motion.section variants={fadeIn} className="bg-white p-6 md:p-10 rounded-3xl border border-outline-variant shadow-sm relative overflow-hidden">
             <div className="absolute top-0 left-0 w-1.5 h-full bg-primary/20" />
-            <h2 className="text-2xl font-bold mb-8 flex items-center gap-3 text-primary tracking-tight">
+            <h2 className="text-xl md:text-2xl font-bold mb-6 md:mb-8 flex items-center gap-3 text-primary tracking-tight">
               <CreditCard className="size-6" />
               Phương thức thanh toán
             </h2>
             <div className="space-y-4">
               {["Thanh toán khi nhận hàng (COD)", "Chuyển khoản ngân hàng", "Ví điện tử (Momo / ZaloPay)"].map((method, i) => (
-                <label key={method} className="flex items-center p-5 border border-outline-variant rounded-2xl cursor-pointer hover:bg-primary-container/5 transition-all group">
+                <label key={method} className="flex items-center p-4 md:p-5 border border-outline-variant rounded-2xl cursor-pointer hover:bg-primary-container/5 transition-all group">
                   <input defaultChecked={i === 0} className="size-5 text-primary border-outline-variant focus:ring-primary" name="payment" type="radio" value={method} />
-                  <span className="ml-5 font-bold text-on-surface">{method}</span>
+                  <span className="ml-4 md:ml-5 font-bold text-on-surface text-sm md:text-base">{method}</span>
                 </label>
               ))}
             </div>
@@ -122,14 +122,14 @@ export default function Checkout() {
           transition={{ duration: 0.5, delay: 0.3 }}
           className="lg:col-span-5 h-full"
         >
-          <div className="sticky top-24 space-y-8">
-            <div className="bg-white p-8 md:p-10 rounded-3xl border border-outline-variant shadow-xl ring-1 ring-white/50">
-              <h2 className="text-2xl font-bold mb-8 flex items-center justify-between tracking-tight">
+          <div className="sticky top-24 space-y-6 md:space-y-8">
+            <div className="bg-white p-6 md:p-10 rounded-3xl border border-outline-variant shadow-xl ring-1 ring-white/50">
+              <h2 className="text-xl md:text-2xl font-bold mb-6 md:mb-8 flex items-center justify-between tracking-tight">
                 Tóm tắt đơn hàng
                 <span className="text-xs font-bold uppercase tracking-widest opacity-40">3 Sản phẩm</span>
               </h2>
               
-              <div className="divide-y divide-outline-variant/30 max-h-[320px] overflow-y-auto pr-2 mb-8 custom-scrollbar">
+              <div className="divide-y divide-outline-variant/30 max-h-[320px] overflow-y-auto pr-2 mb-6 md:mb-8 custom-scrollbar">
                 {[PRODUCTS[0], PRODUCTS[1], PRODUCTS[2]].map((item) => (
                   <div key={item.id} className="py-5 flex gap-5 items-center">
                     <div className="size-20 flex-shrink-0 bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant/30">
@@ -144,7 +144,7 @@ export default function Checkout() {
                 ))}
               </div>
 
-              <div className="space-y-4 pt-6 border-t border-outline-variant/50">
+              <div className="space-y-4 pt-4 md:pt-6 border-t border-outline-variant/50">
                 <div className="flex justify-between text-sm font-medium text-on-surface-variant">
                   <span>Tạm tính</span>
                   <span className="font-bold">197,000đ</span>
@@ -153,9 +153,9 @@ export default function Checkout() {
                   <span>Phí vận chuyển</span>
                   <span className="font-bold">20,000đ</span>
                 </div>
-                <div className="flex justify-between pt-4">
-                  <span className="text-2xl font-bold tracking-tight">Tổng cộng</span>
-                  <span className="text-3xl font-bold text-primary">217,000đ</span>
+                <div className="flex justify-between pt-4 items-end">
+                  <span className="text-xl md:text-2xl font-bold tracking-tight">Tổng cộng</span>
+                  <span className="text-2xl md:text-3xl font-bold text-primary">217,000đ</span>
                 </div>
               </div>
 
@@ -170,11 +170,11 @@ export default function Checkout() {
               </div>
             </div>
 
-            <div className="bg-surface-container p-8 rounded-3xl border border-outline-variant/50">
+            <div className="bg-surface-container p-6 md:p-8 rounded-3xl border border-outline-variant/50">
               <label className="block text-xs font-bold uppercase tracking-[0.2em] text-on-surface-variant mb-4 ml-1">Mã giảm giá</label>
-              <div className="flex gap-3">
-                <input className="flex-grow h-14 px-5 rounded-2xl border border-outline-variant bg-white outline-none focus:ring-2 focus:ring-primary/20 font-medium" placeholder="KHUYENMAI20" type="text" />
-                <button className="px-8 h-14 bg-white border-2 border-primary text-primary rounded-2xl font-bold hover:bg-primary hover:text-white transition-all shadow-sm">Áp dụng</button>
+              <div className="flex flex-col sm:flex-row gap-3">
+                <input className="w-full sm:flex-grow h-14 px-5 rounded-2xl border border-outline-variant bg-white outline-none focus:ring-2 focus:ring-primary/20 font-medium" placeholder="KHUYENMAI20" type="text" />
+                <button className="w-full sm:w-auto px-8 h-14 bg-white border-2 border-primary text-primary rounded-2xl font-bold hover:bg-primary hover:text-white transition-all shadow-sm">Áp dụng</button>
               </div>
             </div>
           </div>

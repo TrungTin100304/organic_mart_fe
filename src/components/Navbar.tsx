@@ -9,16 +9,19 @@ export default function Navbar() {
 
   return (
     <header className="fixed w-full z-50 bg-surface border-b border-outline-variant">
-      <div className="max-w-[1280px] mx-auto flex items-center px-margin-desktop h-20">
+      <div className="max-w-[1280px] mx-auto flex items-center justify-between px-4 md:px-10 h-16 md:h-20 gap-4">
         {/* Left Section: Logo */}
-        <div className="flex-1 flex items-center">
-          <Link to="/" className="text-headline-md font-bold text-primary shrink-0 hover:brightness-90 transition-all">
+        <div className="flex-1 md:flex-none flex items-center">
+          <button className="md:hidden p-2 -ml-2 mr-2 text-on-surface-variant">
+            <span className="material-symbols-outlined text-[24px]">menu</span>
+          </button>
+          <Link to="/" className="text-xl md:text-headline-md font-bold text-primary shrink-0 hover:brightness-90 transition-all">
             Organic Mart
           </Link>
         </div>
 
         {/* Center Section: Navigation (Pill Design) */}
-        <div className="flex-shrink-0 flex justify-center px-4">
+        <div className="hidden md:flex flex-shrink-0 justify-center px-4 flex-1">
           <nav className="flex items-center bg-surface-container-low/80 backdrop-blur-lg px-1.5 py-1.5 rounded-full border border-outline-variant/20 shadow-sm">
             <Link 
               to="/" 
@@ -48,7 +51,7 @@ export default function Navbar() {
         </div>
 
         {/* Right Section: Actions & Search */}
-        <div className="flex-1 flex items-center justify-end gap-2 xl:gap-3">
+        <div className="flex items-center justify-end gap-1 md:gap-2 xl:gap-3">
           <div className="hidden lg:flex items-center bg-surface-container-low border border-outline-variant/30 rounded-full px-3 py-1.5 focus-within:border-primary/50 focus-within:ring-1 focus-within:ring-primary/20 transition-all">
             <span className="material-symbols-outlined text-[18px] text-on-surface-variant">search</span>
             <input 
@@ -58,14 +61,17 @@ export default function Navbar() {
             />
           </div>
           <div className="flex items-center">
-            <Link to="/login" className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all">
+            <button className="lg:hidden p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all">
+              <span className="material-symbols-outlined text-[24px]">search</span>
+            </button>
+            <Link to="/login" className="hidden sm:block p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all">
               <span className="material-symbols-outlined text-[24px]">person</span>
             </Link>
             <Link to="/cart" className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all relative group">
               <span className="material-symbols-outlined text-[24px]">shopping_cart</span>
               <span className="absolute top-1.5 right-1.5 bg-primary text-white text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 font-bold border-2 border-surface">2</span>
             </Link>
-            <button className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all">
+            <button className="hidden sm:block p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all">
               <span className="material-symbols-outlined text-[24px]">support_agent</span>
             </button>
           </div>

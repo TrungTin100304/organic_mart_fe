@@ -3,7 +3,7 @@
  * SPDX-License-Identifier: Apache-2.0
  */
 
-import { BrowserRouter as Router, Routes, Route, useLocation } from "react-router-dom";
+import {BrowserRouter as Router, Routes, Route, useLocation} from "react-router-dom";
 import Navbar from "./components/Navbar";
 import Footer from "./components/Footer";
 import Home from "./pages/Home";
@@ -13,6 +13,9 @@ import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
 import MealPlan from "./pages/MealPlan";
 import Auth from "./pages/Auth";
+import About from "./pages/About";
+import UserInfo from "./pages/UserInfo";
+import ForgotPassword from "./pages/ForgotPassword";
 
 export default function App() {
   return (
@@ -24,24 +27,27 @@ export default function App() {
 
 function AppContent() {
   const location = useLocation();
-  const isAuthPage = ["/login", "/register"].includes(location.pathname);
+  const hideChrome = ["/login", "/register", "/forgot-password"].includes(location.pathname);
 
   return (
     <div className="min-h-screen flex flex-col bg-surface overflow-x-hidden font-sans selection:bg-primary/20 selection:text-primary">
-      <Navbar />
-      <main className={`flex-grow ${isAuthPage ? "" : "pt-20"}`}>
+      { !hideChrome && <Navbar /> }
+      <main className={`flex-grow ${hideChrome ? "" : "pt-20"}`}>
         <Routes>
-          <Route path="/" element={<Home />} />
-          <Route path="/shop" element={<Shop />} />
-          <Route path="/product/:id" element={<ProductDetail />} />
-          <Route path="/cart" element={<Cart />} />
-          <Route path="/checkout" element={<Checkout />} />
-          <Route path="/meal-plan" element={<MealPlan />} />
-          <Route path="/register" element={<Auth />} />
-          <Route path="/login" element={<Auth />} />
-        </Routes>
-      </main>
-      <Footer />
-    </div>
-  );
-}
+           <Route path="/" element={<Home />} />
+           <Route path="/shop" element={<Shop />} />
+           <Route path="/product/:id" element={<ProductDetail />} />
+           <Route path="/cart" element={<Cart />} />
+           <Route path="/checkout" element={<Checkout />} />
+           <Route path="/meal-plan" element={<MealPlan />} />
+           <Route path="/about" element={<About />} />
+           <Route path="/register" element={<Auth />} />
+           <Route path="/login" element={<Auth />} />
+           <Route path="/account" element={<UserInfo />} />
+           <Route path="/forgot-password" element={<ForgotPassword />} />
+         </Routes>
+       </main>
+      { !hideChrome && <Footer /> }
+     </div>
+   );
+ }

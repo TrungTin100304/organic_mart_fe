@@ -1,6 +1,6 @@
 import { Link } from "react-router-dom";
 import { Minus, Plus, Trash2, ChevronRight, ShoppingCart, ArrowLeft, ArrowRight, ShieldCheck, CreditCard, Landmark, Banknote } from "lucide-react";
-import { PRODUCTS } from "@/src/types";
+import { PRODUCTS } from "@/types/index";
 import { motion } from "motion/react";
 
 const fadeIn = {
@@ -23,7 +23,7 @@ export default function Cart() {
     <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
       <motion.nav 
         {...fadeIn}
-        className="flex items-center gap-2 mb-10 text-on-surface-variant text-sm font-medium"
+        className="flex items-center gap-2 mb-6 md:mb-10 text-on-surface-variant text-sm font-medium"
       >
         <Link to="/" className="hover:text-primary transition-colors">Home</Link>
         <ChevronRight className="size-4" />
@@ -32,15 +32,15 @@ export default function Cart() {
 
       <motion.h1 
         {...fadeIn}
-        className="text-3xl font-bold text-on-surface mb-10 tracking-tight"
+        className="text-2xl md:text-3xl font-bold text-on-surface mb-6 md:mb-10 tracking-tight"
       >
         Giỏ hàng của bạn
       </motion.h1>
       
-      <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
-        <div className="lg:col-span-8 space-y-8">
-          <div className="bg-white border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
-            <table className="w-full text-left border-collapse">
+      <div className="flex flex-col lg:grid lg:grid-cols-12 gap-8 md:gap-10 items-start">
+        <div className="w-full lg:col-span-8 flex flex-col gap-6 md:gap-8">
+          <div className="bg-white border border-outline-variant rounded-2xl overflow-x-auto shadow-sm">
+            <table className="w-full min-w-[600px] text-left border-collapse">
               <thead className="bg-surface-container-low text-on-surface-variant text-[10px] font-bold uppercase tracking-[0.1em]">
                 <tr>
                   <th className="px-8 py-5">Sản phẩm</th>
@@ -97,7 +97,7 @@ export default function Cart() {
             </table>
           </div>
 
-          <div className="flex flex-col sm:flex-row justify-between items-center gap-6">
+          <div className="flex flex-col-reverse sm:flex-row justify-between items-center gap-4 md:gap-6">
             <Link to="/shop" className="flex items-center gap-3 px-8 py-4 border-2 border-primary text-primary font-bold rounded-2xl hover:bg-primary hover:text-white transition-all w-full sm:w-auto justify-center group">
               <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
               Tiếp tục mua sắm
@@ -113,7 +113,7 @@ export default function Cart() {
           initial={{ opacity: 0, x: 20 }}
           animate={{ opacity: 1, x: 0 }}
           transition={{ duration: 0.5, delay: 0.2 }}
-          className="lg:col-span-4 sticky top-24"
+          className="w-full lg:col-span-4 sticky top-24"
         >
           <div className="bg-surface-container-high rounded-3xl p-8 border border-outline-variant shadow-lg ring-1 ring-white/50 backdrop-blur-sm">
             <h2 className="text-2xl font-bold text-on-surface mb-8 tracking-tight">Tóm tắt đơn hàng</h2>
