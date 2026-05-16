@@ -51,8 +51,16 @@ export default function Auth() {
       if (response.data) {
         localStorage.setItem("accessToken", response.data.accessToken);
         localStorage.setItem("refreshToken", response.data.refreshToken);
+        localStorage.setItem("userEmail", response.data.email);
+        localStorage.setItem("userRole", response.data.role);
       }
-      navigate("/");
+
+      // Redirect based on role
+      if (response.data?.role === "ADMIN") {
+        navigate("/admin");
+      } else {
+        navigate("/");
+      }
     } catch (err: any) {
       console.error("Login Error:", err);
       let errorMessage = err.message || "Đăng nhập thất bại, vui lòng kiểm tra lại ID/Mật khẩu";
