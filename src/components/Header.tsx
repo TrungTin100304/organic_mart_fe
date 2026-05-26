@@ -1,4 +1,5 @@
 import { Link, useLocation } from "react-router-dom";
+import UserMenu from "./UserMenu";
 
 export default function Navbar() {
   const location = useLocation();
@@ -64,9 +65,7 @@ export default function Navbar() {
             <button className="lg:hidden p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all">
               <span className="material-symbols-outlined text-[24px]">search</span>
             </button>
-            <Link to="/login" className="hidden sm:block p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all">
-              <span className="material-symbols-outlined text-[24px]">person</span>
-            </Link>
+            <UserMenu />
             <Link to="/cart" className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all relative group">
               <span className="material-symbols-outlined text-[24px]">shopping_cart</span>
               <span className="absolute top-1.5 right-1.5 bg-primary text-white text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 font-bold border-2 border-surface">2</span>

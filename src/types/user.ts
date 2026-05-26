@@ -10,7 +10,7 @@ export interface Address {
   isPrimary?: boolean;
 }
 
-export interface OrderSummary {
+export interface Order {
   id: string;
   date: string; // ISO string or human-friendly
   status: 'Delivered' | 'Out for Delivery' | 'Processing' | string;
@@ -18,13 +18,17 @@ export interface OrderSummary {
 }
 
 export interface User {
-  id: string;
+  id: string | number;
   fullName: string;
   email: string;
   phone?: string;
-  avatarUrl?: string;
+  phoneNumber?: string;
+  avatarUrl?: string | null;
   status?: string;
+  isActive?: boolean;
+  role?: string;
+  createdAt?: string;
+  updatedAt?: string;
   addresses?: Address[];
-  recentOrders?: OrderSummary[];
+  recentOrders?: Order[];
 }
-

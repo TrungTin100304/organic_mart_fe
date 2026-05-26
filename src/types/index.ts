@@ -1,20 +1,16 @@
-export interface Product {
-  id: string;
-  name: string;
-  price: number;
-  image: string;
-  category: string;
-  description: string;
-  organic: boolean;
-  isNew?: boolean;
-  sale?: boolean;
-  rating?: number;
-  reviews?: number;
-}
+import type { Product } from './product';
 
-export interface CartItem extends Product {
-  quantity: number;
-}
+export type {
+  Product,
+  CartItem,
+  ProductCategory,
+  NutritionPer100g,
+  RawProduct,
+  PaginatedData,
+  ProductsApiResponse,
+  ProductsPage,
+  ProductApiTypes,
+} from './product';
 
 export const PRODUCTS: Product[] = [
   {

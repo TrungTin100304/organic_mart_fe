@@ -1,7 +1,9 @@
-import { LayoutGrid, List, ChevronRight, Search } from "lucide-react";
-import { PRODUCTS } from "../types";
-import ProductCard from "../components/ProductCard";
+import { useEffect, useState } from "react";
+import { LayoutGrid, List, ChevronRight } from "lucide-react";
 import { motion } from "motion/react";
+import ProductCard from "../components/ProductCard";
+import { getProducts } from "../services/productService";
+import type { Product } from "../types";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -20,6 +22,56 @@ const staggerContainer = {
 
 
 export default function Shop() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [page, setPage] = useState(0);
+  const [size] = useState(10);
+  const [totalPages, setTotalPages] = useState(0);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    const loadProducts = async () => {
+      setLoading(true);
+      setError(null);
+
+      try {
+        const response = await getProducts(page, size);
+
+        if (!isMounted) return;
+
+        setProducts(response.items);
+        setTotalPages(response.totalPages);
+      } catch (err) {
+        if (!isMounted) return;
+
+        setError(err instanceof Error ? err.message : "Không thể tải danh sách sản phẩm");
+        setProducts([]);
+        setTotalPages(0);
+      } finally {
+        if (isMounted) {
+          setLoading(false);
+        }
+      }
+    };
+
+    loadProducts();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [page, size]);
+
+  const visiblePages =
+    totalPages > 0
+      ? Array.from({ length: Math.min(totalPages, 5) }, (_, index) => {
+          if (totalPages <= 5 || page < 2) return index;
+          if (page > totalPages - 3) return totalPages - Math.min(totalPages, 5) + index;
+          return page - 2 + index;
+        }).filter((value, index, self) => self.indexOf(value) === index && value >= 0 && value < totalPages)
+      : [];
+
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-10 py-6 md:py-10">
       <motion.nav 
@@ -68,12 +120,12 @@ export default function Shop() {
           <div className="hidden md:block">
             <h3 className="font-bold mb-4 border-b border-outline-variant pb-2 uppercase text-xs tracking-widest opacity-60">Sản phẩm nổi bật</h3>
             <div className="space-y-4">
-              {PRODUCTS.slice(0, 2).map((p) => (
+              {products.slice(0, 2).map((p) => (
                 <div key={p.id} className="flex gap-4 group cursor-pointer">
-                  <img src={p.image} className="size-16 object-cover rounded-lg border border-outline-variant" alt="" />
+                  <img src={p.image} className="size-16 object-cover rounded-lg border border-outline-variant" alt={p.name} />
                   <div>
                     <h4 className="text-xs font-semibold line-clamp-2 group-hover:text-primary">{p.name}</h4>
-                    <p className="text-primary font-bold text-sm">{(p.price).toLocaleString()}đ</p>
+                    <p className="text-primary font-bold text-sm">{p.price.toLocaleString()}đ</p>
                   </div>
                 </div>
               ))}
@@ -113,26 +165,43 @@ export default function Shop() {
             animate="animate"
             className="grid grid-cols-2 lg:grid-cols-3 gap-6"
           >
-            {PRODUCTS.map((product, idx) => (
-              <motion.div
-                key={product.id}
-                variants={{
-                  initial: { opacity: 0, y: 20 },
-                  animate: { opacity: 1, y: 0 }
-                }}
-              >
-                <ProductCard product={product} />
-              </motion.div>
-            ))}
+            {loading ? (
+              <div className="col-span-full rounded-2xl border border-outline-variant bg-white p-8 text-center text-on-surface-variant">
+                Đang tải sản phẩm từ API...
+              </div>
+            ) : error ? (
+              <div className="col-span-full rounded-2xl border border-red-200 bg-red-50 p-8 text-center text-red-700">
+                <p className="font-semibold mb-1">Không tải được sản phẩm</p>
+                <p className="text-sm">{error}</p>
+              </div>
+            ) : products.length === 0 ? (
+              <div className="col-span-full rounded-2xl border border-outline-variant bg-white p-8 text-center text-on-surface-variant">
+                Không có sản phẩm nào để hiển thị.
+              </div>
+            ) : (
+              products.map((product) => (
+                <motion.div
+                  key={product.id}
+                  variants={{
+                    initial: { opacity: 0, y: 20 },
+                    animate: { opacity: 1, y: 0 }
+                  }}
+                >
+                  <ProductCard product={product} />
+                </motion.div>
+              ))
+            )}
           </motion.div>
 
           <div className="mt-8 md:mt-12 flex justify-center gap-2">
-            {[1, 2, 3].map((n) => (
+            {visiblePages.map((n) => (
               <button 
                 key={n}
-                className={`size-10 rounded-full border border-outline-variant flex items-center justify-center transition-all ${n === 2 ? "bg-primary text-on-primary font-bold" : "hover:bg-primary-container"}`}
+                onClick={() => setPage(n)}
+                disabled={loading}
+                className={`size-10 rounded-full border border-outline-variant flex items-center justify-center transition-all ${page === n ? "bg-primary text-on-primary font-bold" : "hover:bg-primary-container"} disabled:opacity-60 disabled:cursor-not-allowed`}
               >
-                {n}
+                {n + 1}
               </button>
             ))}
           </div>

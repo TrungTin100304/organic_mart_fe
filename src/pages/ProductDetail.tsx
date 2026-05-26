@@ -1,8 +1,7 @@
 import { useParams, Link } from "react-router-dom";
-import { ChevronRight, Star, Truck, CheckCircle2, ShoppingCart, Minus, Plus, ArrowRight } from "lucide-react";
-import { PRODUCTS } from "../types";
-import ProductCard from "../components/ProductCard";
+import { ChevronRight, Star, Truck, CheckCircle2, ShoppingCart, Minus, Plus } from "lucide-react";
 import { motion } from "motion/react";
+import { useProduct } from '@/hooks/useProduct';
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -21,7 +20,31 @@ const staggerContainer = {
 
 export default function ProductDetail() {
   const { id } = useParams();
-  const product = PRODUCTS.find(p => p.id === id) || PRODUCTS[0];
+  const { product, isLoading, error } = useProduct(id as string | undefined);
+
+  if (isLoading) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
+        <div className="text-center py-20">Đang tải sản phẩm…</div>
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
+        <div className="text-center text-red-600 py-20">Lỗi: {error}</div>
+      </div>
+    );
+  }
+
+  if (!product) {
+    return (
+      <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
+        <div className="text-center py-20">Sản phẩm không tồn tại.</div>
+      </div>
+    );
+  }
 
   return (
     <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
@@ -48,7 +71,7 @@ export default function ProductDetail() {
               className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-700" 
             />
             {product.organic && (
-              <div className="absolute top-6 right-6 bg-primary-container text-on-primary-container px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest">HỮU CƠ</div>
+              <div className="absolute top-6 right-6 bg-primary-container text-on-primary-container px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest">{product.category}</div>
             )}
           </div>
           <div className="flex flex-row md:flex-col gap-4 overflow-x-auto pb-2 md:pb-0 custom-scrollbar">

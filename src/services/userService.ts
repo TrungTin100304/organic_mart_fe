@@ -6,18 +6,21 @@ const API_URL = 'http://localhost:8080/api/v1';
 // fall back to a lightweight mock so the UI remains usable.
 export const getCurrentUser = async (): Promise<User> => {
   try {
-    const res = await fetch(`${API_URL}/user/me`, {
+    const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+
+    const res = await fetch(`${API_URL}/users/me`, {
+      method: 'GET',
       headers: {
-        'Accept': 'application/json',
+        'Accept': '*/*',
+        ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
       },
-      credentials: 'include',
     });
 
     if (!res.ok) {
       throw new Error('Failed to fetch user');
     }
 
-    const data = await res.json();
+    const { data } = await res.json();
     return data as User;
   } catch (e) {
     // Fallback mock user for local development
@@ -55,3 +58,21 @@ export const getCurrentUser = async (): Promise<User> => {
   }
 };
 
+export const updateCurrentUser = async (formData: FormData): Promise<User> => {
+  const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
+  const res = await fetch(`${API_URL}/users/me`, {
+    method: 'PUT',
+    headers: {
+      'Accept': '*/*',
+      ...(token ? { 'Authorization': `Bearer ${token}` } : {}),
+    },
+    body: formData, // fetch will automatically set the correct Content-Type for multipart/form-data
+  });
+
+  if (!res.ok) {
+    throw new Error('Failed to update user');
+  }
+
+  const { data } = await res.json();
+  return data as User;
+};

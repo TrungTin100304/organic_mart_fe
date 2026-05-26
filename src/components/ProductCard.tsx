@@ -19,9 +19,9 @@ export default function ProductCard({ product }: ProductCardProps) {
             Xem chi tiết sản phẩm
           </span>
         </div>
-        {(product.isNew || product.organic) && (
-          <span className="absolute top-2 right-2 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded z-20 shadow-sm">
-            {product.isNew ? "MỚI" : "HỮU CƠ"}
+        {product.category?.trim() && (
+          <span className="absolute top-2 right-2 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded z-20 shadow-sm uppercase">
+            {product.category}
           </span>
         )}
       </Link>
