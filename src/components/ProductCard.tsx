@@ -34,6 +34,20 @@ export default function ProductCard({ product }: ProductCardProps) {
           {product.price.toLocaleString()}₫
           <span className="text-[10px] text-on-surface-variant/60 ml-1 font-medium">/ kg</span>
         </p>
+        {product.allergens && product.allergens.length > 0 && (
+          <div className="mb-3 flex flex-wrap gap-2 justify-center">
+            {product.allergens.slice(0, 2).map((allergen) => (
+              <span key={allergen} className="text-[11px] px-2 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                {allergen}
+              </span>
+            ))}
+            {product.allergens.length > 2 && (
+              <span className="text-[11px] px-2 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
+                +{product.allergens.length - 2} khác
+              </span>
+            )}
+          </div>
+        )}
         <div className="mt-auto flex items-center gap-2">
           <button className="flex-1 py-2 border border-primary text-primary font-bold rounded-lg hover:bg-primary hover:text-white transition-colors duration-300 text-xs truncate px-1">
             Thêm giỏ
