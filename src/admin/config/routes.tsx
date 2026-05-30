@@ -2,7 +2,9 @@ import type { ReactElement } from "react";
 import type { LucideIcon } from "lucide-react";
 import {
   FolderTree,
+  AlertTriangle,
   LayoutDashboard,
+  Leaf,
   Package,
   Settings,
   ShoppingCart,
@@ -12,7 +14,9 @@ import {
   Warehouse,
 } from "lucide-react";
 import Categories from "../pages/Categories";
+import Allergens from "../pages/Allergens";
 import Dashboard from "../pages/Dashboard";
+import Farms from "../pages/Farms";
 import Inventory from "../pages/Inventory";
 import Orders from "../pages/Orders";
 import Products from "../pages/Products";
@@ -46,7 +50,9 @@ export const ADMIN_ROUTES: AdminRouteConfig[] = [
   { key: "products", path: "products", to: "/admin/products", label: "San pham", group: "management", icon: Package, element: <Products /> },
   { key: "users", path: "users", to: "/admin/users", label: "Nguoi dung", group: "management", icon: Users, element: <UsersPage /> },
   { key: "categories", path: "categories", to: "/admin/categories", label: "Danh muc", group: "management", icon: FolderTree, element: <Categories /> },
+  { key: "farms", path: "farms", to: "/admin/farms", label: "Nong trai", group: "management", icon: Leaf, element: <Farms /> },
   { key: "inventory", path: "inventory", to: "/admin/inventory", label: "Ton kho", group: "management", icon: Warehouse, element: <Inventory /> },
+  { key: "allergens", path: "allergens", to: "/admin/allergens", label: "Di ung", group: "management", icon: AlertTriangle, element: <Allergens /> },
   { key: "promotions", path: "promotions", to: "/admin/promotions", label: "Khuyen mai", group: "marketing", icon: Ticket, element: <Promotions /> },
   { key: "reviews", path: "reviews", to: "/admin/reviews", label: "Danh gia", group: "marketing", icon: Star, element: <Reviews />, badge: 2 },
   { key: "settings", path: "settings", to: "/admin/settings", label: "Cai dat", group: "system", icon: Settings, element: <SettingsPage /> },

@@ -1,11 +1,23 @@
 export interface Product {
   id: string;
   name: string;
+  slug?: string;
   price: number;
   image: string;
+  imageUrl?: string;
   category: string;
+  categoryId?: string;
   description: string;
+  storageInstructions?: string;
+  detailedDescription?: string;
+  unit?: string;
+  nutritionPer100g?: Record<string, unknown>;
   organic: boolean;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  stock?: number;
+  allergens?: Array<{ id: number; name: string; createdAt?: string }>;
   isNew?: boolean;
   sale?: boolean;
   rating?: number;

@@ -1,7 +1,9 @@
 import { Link, useLocation } from "react-router-dom";
+import { useEffect, useState } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { ChevronLeft, ChevronRight, Leaf, LogOut, X } from "lucide-react";
 import { ADMIN_ROUTES, ADMIN_ROUTE_SECTIONS } from "../AdminRoutes";
+import { getCurrentUser } from "../../services/userService";
 
 interface AdminSidebarProps {
   collapsed: boolean;
@@ -12,6 +14,13 @@ interface AdminSidebarProps {
 
 export default function AdminSidebar({ collapsed, onToggle, mobileOpen, onMobileClose }: AdminSidebarProps) {
   const location = useLocation();
+  const [adminName, setAdminName] = useState("Admin");
+
+  useEffect(() => {
+    getCurrentUser()
+      .then((user) => setAdminName(user.fullName || user.email))
+      .catch(() => setAdminName("Admin"));
+  }, []);
 
   const isActive = (path: string) => {
     if (path === "/admin") return location.pathname === "/admin";
@@ -89,9 +98,9 @@ export default function AdminSidebar({ collapsed, onToggle, mobileOpen, onMobile
       {!collapsed && (
         <div className="border-t border-outline-variant/30 p-4">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-sm">QH</div>
+            <div className="w-9 h-9 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-sm">{adminName.split(" ").map((part) => part[0]).slice(0, 2).join("").toUpperCase()}</div>
             <div className="flex-1 min-w-0">
-              <p className="text-sm font-semibold text-on-surface truncate">Quang Huy</p>
+              <p className="text-sm font-semibold text-on-surface truncate">{adminName}</p>
               <p className="text-[11px] text-on-surface-variant truncate">Admin</p>
             </div>
             <Link to="/" className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-primary transition-colors" title="Ve storefront">

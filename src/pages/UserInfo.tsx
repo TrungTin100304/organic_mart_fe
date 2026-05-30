@@ -1,113 +1,767 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { ProfileCard } from '@/components/ProfileCard';
 import { useUser } from '@/hooks/useUser';
+import * as addressService from '@/services/addressService';
+import * as allergenService from '@/services/allergenService';
+import type { Address, Allergen } from '@/types/user';
+
+interface Toast {
+  id: number;
+  message: string;
+  type: 'success' | 'error';
+}
 
 const UserInfoPage: React.FC = () => {
-  const { user, isLoading, error } = useUser();
+  const navigate = useNavigate();
+  const { user, isLoading, error, refetch } = useUser();
+  const [addresses, setAddresses] = useState<Address[]>([]);
+  const [isAddressesLoading, setIsAddressesLoading] = useState(true);
 
-  if (isLoading) return <div className="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">Loading user...</div>;
-  if (error) return <div className="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop text-red-600">{error}</div>;
-  if (!user) return <div className="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop">No user found.</div>;
+  // Active sidebar tab
+  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'orders' | 'settings'>('profile');
+
+  // Allergen state
+  const [allergens, setAllergens] = useState<Allergen[]>([]);
+  const [selectedAllergens, setSelectedAllergens] = useState<number[]>([]);
+
+  // Profile Modal State
+  const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
+  const [profileForm, setProfileForm] = useState({ fullName: '', phone: '' });
+  const [isProfileSubmitting, setIsProfileSubmitting] = useState(false);
+
+  // Address Modal State
+  const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
+  const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  const [addressForm, setAddressForm] = useState<Omit<Address, 'id'>>({
+    label: 'HOME',
+    customLabel: '',
+    recipientName: '',
+    recipientPhone: '',
+    fullAddress: '',
+    ward: '',
+    district: '',
+    city: '',
+    isDefault: false,
+  });
+  const [isAddressSubmitting, setIsAddressSubmitting] = useState(false);
+
+  // Toast Notification State
+  const [toasts, setToasts] = useState<Toast[]>([]);
+
+  const showToast = (message: string, type: 'success' | 'error') => {
+    const id = Date.now();
+    setToasts((prev) => [...prev, { id, message, type }]);
+    setTimeout(() => {
+      setToasts((prev) => prev.filter((t) => t.id !== id));
+    }, 4000);
+  };
+
+  useEffect(() => {
+    if (user) {
+      loadAddresses();
+      loadAllergens(user.id);
+    }
+  }, [user]);
+
+  const loadAddresses = async () => {
+    setIsAddressesLoading(true);
+    try {
+      const list = await addressService.getAllAddresses();
+      setAddresses(list);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to fetch addresses', 'error');
+    } finally {
+      setIsAddressesLoading(false);
+    }
+  };
+
+  const loadAllergens = async (userId: string | number) => {
+    try {
+      const list = await allergenService.getAllAllergens();
+      setAllergens(list);
+
+      const saved = localStorage.getItem(`user_allergens_${userId}`);
+      if (saved) {
+        setSelectedAllergens(JSON.parse(saved));
+      }
+    } catch (err: any) {
+      console.error('Failed to load allergens:', err);
+    }
+  };
+
+  const handleToggleAllergen = (id: number) => {
+    if (!user) return;
+    let updated: number[];
+    if (selectedAllergens.includes(id)) {
+      updated = selectedAllergens.filter((x) => x !== id);
+    } else {
+      updated = [...selectedAllergens, id];
+    }
+    setSelectedAllergens(updated);
+    localStorage.setItem(`user_allergens_${user.id}`, JSON.stringify(updated));
+    showToast('Dietary preferences updated successfully!', 'success');
+  };
+
+  // Profile Edit
+  const handleOpenProfileModal = () => {
+    if (user) {
+      setProfileForm({
+        fullName: user.fullName || '',
+        phone: user.phone || '',
+      });
+      setIsProfileModalOpen(true);
+    }
+  };
+
+  const handleProfileSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!profileForm.fullName.trim()) {
+      showToast('Full Name is required', 'error');
+      return;
+    }
+    setIsProfileSubmitting(true);
+    try {
+      const formData = new FormData();
+      formData.append('fullName', profileForm.fullName.trim());
+      formData.append('phoneNumber', profileForm.phone.trim());
+
+      const { updateCurrentUser } = await import('@/services/userService');
+      await updateCurrentUser(formData);
+      showToast('Profile updated successfully!', 'success');
+      refetch();
+      setIsProfileModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to update profile', 'error');
+    } finally {
+      setIsProfileSubmitting(false);
+    }
+  };
+
+  // Address CRUD
+  const handleOpenAddressModal = (addr?: Address) => {
+    if (addr) {
+      setEditingAddress(addr);
+      setAddressForm({
+        label: addr.label,
+        customLabel: addr.customLabel || '',
+        recipientName: addr.recipientName,
+        recipientPhone: addr.recipientPhone,
+        fullAddress: addr.fullAddress,
+        ward: addr.ward || '',
+        district: addr.district || '',
+        city: addr.city || '',
+        isDefault: addr.isDefault,
+      });
+    } else {
+      setEditingAddress(null);
+      setAddressForm({
+        label: 'HOME',
+        customLabel: '',
+        recipientName: user?.fullName || '',
+        recipientPhone: user?.phone || '',
+        fullAddress: '',
+        ward: '',
+        district: '',
+        city: '',
+        isDefault: addresses.length === 0,
+      });
+    }
+    setIsAddressModalOpen(true);
+  };
+
+  const handleAddressSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!addressForm.recipientName.trim()) {
+      showToast('Recipient name is required', 'error');
+      return;
+    }
+    if (!addressForm.recipientPhone.trim()) {
+      showToast('Recipient phone is required', 'error');
+      return;
+    }
+    if (!addressForm.fullAddress.trim()) {
+      showToast('Street address is required', 'error');
+      return;
+    }
+    if (!addressForm.city?.trim()) {
+      showToast('City is required', 'error');
+      return;
+    }
+
+    setIsAddressSubmitting(true);
+    try {
+      if (editingAddress && editingAddress.id !== undefined) {
+        await addressService.updateAddress(editingAddress.id, {
+          ...addressForm,
+          id: editingAddress.id,
+        });
+        showToast('Address updated successfully!', 'success');
+      } else {
+        await addressService.createAddress(addressForm);
+        showToast('Address created successfully!', 'success');
+      }
+      await loadAddresses();
+      setIsAddressModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Failed to save address', 'error');
+    } finally {
+      setIsAddressSubmitting(false);
+    }
+  };
+
+  const handleDeleteAddress = async (id: number | string) => {
+    if (!window.confirm('Are you sure you want to delete this address?')) return;
+    try {
+      await addressService.deleteAddress(id);
+      showToast('Address deleted successfully', 'success');
+      await loadAddresses();
+    } catch (err: any) {
+      showToast(err.message || 'Failed to delete address', 'error');
+    }
+  };
+
+  const handleLogout = async () => {
+    const refreshToken = localStorage.getItem("refreshToken");
+    if (refreshToken) {
+      try {
+        const { logout } = await import("@/services/authService");
+        await logout({ refreshToken });
+      } catch (err) {
+        console.warn("Backend logout failed, clearing local session anyway.", err);
+      }
+    }
+    localStorage.removeItem("accessToken");
+    localStorage.removeItem("refreshToken");
+    localStorage.removeItem("userEmail");
+    localStorage.removeItem("userRole");
+    showToast("Logged out successfully!", "success");
+    setTimeout(() => {
+      navigate("/login");
+    }, 1000);
+  };
+
+  if (isLoading) return <div className="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop font-sans text-center text-on-surface-variant font-medium">Loading user...</div>;
+
+  if (error) {
+    return (
+      <div className="pt-32 pb-24 max-w-md mx-auto px-6 text-center space-y-6 font-sans">
+        <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
+          <span className="material-symbols-outlined text-[32px]">warning</span>
+        </div>
+        <div className="space-y-2">
+          <h3 className="text-headline-md font-bold text-on-surface">Đã xảy ra lỗi</h3>
+          <p className="text-on-surface-variant text-body-md leading-relaxed">{error}</p>
+        </div>
+        <button
+          onClick={() => navigate('/login')}
+          className="w-full py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/95 transition-all shadow-md active:scale-95 cursor-pointer"
+        >
+          Đăng nhập ngay
+        </button>
+      </div>
+    );
+  }
+  if (!user) return <div className="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop font-sans">No user found.</div>;
+
+  const recentOrders = user.recentOrders || [];
 
   return (
-    <main className="pt-24 pb-12 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto">
+    <main className="pt-24 pb-12 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto font-sans">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
         <aside className="md:col-span-3 space-y-2">
           <h2 className="font-headline-md text-headline-md mb-6 px-4">My Account</h2>
           <nav className="space-y-1">
-            <a className="flex items-center gap-4 px-4 py-3 bg-primary-container text-on-primary-container rounded-xl font-label-lg text-label-lg transition-all active:scale-95" href="#">
-              <span className="material-symbols-outlined" data-icon="person" data-weight="fill" style={{ fontVariationSettings: `"FILL" 1` }}>person</span>
-              Profile Info
-            </a>
-            <a className="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl font-label-lg text-label-lg transition-all" href="#">Order History</a>
-            <a className="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl font-label-lg text-label-lg transition-all" href="#">Addresses</a>
-            <a className="flex items-center gap-4 px-4 py-3 text-on-surface-variant hover:bg-surface-container-high rounded-xl font-label-lg text-label-lg transition-all" href="#">Settings</a>
+            <button
+              onClick={() => setActiveTab('profile')}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-label-lg text-label-lg transition-all active:scale-95 text-left cursor-pointer ${
+                activeTab === 'profile'
+                  ? 'bg-primary text-white shadow-md font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container-high font-medium'
+              }`}
+            >
+              <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === 'profile' ? `"FILL" 1` : `"FILL" 0` }}>person</span>
+              Thông tin cá nhân
+            </button>
+            <button
+              onClick={() => setActiveTab('orders')}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-label-lg text-label-lg transition-all active:scale-95 text-left cursor-pointer ${
+                activeTab === 'orders'
+                  ? 'bg-primary text-white shadow-md font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container-high font-medium'
+              }`}
+            >
+              <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === 'orders' ? `"FILL" 1` : `"FILL" 0` }}>history</span>
+              Lịch sử mua hàng
+            </button>
+            <button
+              onClick={() => setActiveTab('addresses')}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-label-lg text-label-lg transition-all active:scale-95 text-left cursor-pointer ${
+                activeTab === 'addresses'
+                  ? 'bg-primary text-white shadow-md font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container-high font-medium'
+              }`}
+            >
+              <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === 'addresses' ? `"FILL" 1` : `"FILL" 0` }}>location_on</span>
+              Sổ địa chỉ
+            </button>
+            <button
+              onClick={() => setActiveTab('settings')}
+              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-label-lg text-label-lg transition-all active:scale-95 text-left cursor-pointer ${
+                activeTab === 'settings'
+                  ? 'bg-primary text-white shadow-md font-bold'
+                  : 'text-on-surface-variant hover:bg-surface-container-high font-medium'
+              }`}
+            >
+              <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === 'settings' ? `"FILL" 1` : `"FILL" 0` }}>settings</span>
+              Cài đặt tài khoản
+            </button>
+            <button
+              onClick={handleLogout}
+              className="w-full flex items-center gap-4 px-4 py-3 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-xl font-label-lg text-label-lg transition-all cursor-pointer text-left"
+            >
+              <span className="material-symbols-outlined">logout</span>
+              Đăng xuất
+            </button>
           </nav>
         </aside>
 
         <div className="md:col-span-9 space-y-12">
-          <ProfileCard user={user} />
+          {activeTab === 'profile' && (
+            <div className="space-y-12 animate-in fade-in duration-300">
+              {/* Personal Info Card */}
+              <ProfileCard
+                user={user}
+                onEdit={handleOpenProfileModal}
+                onUpdateSuccess={refetch}
+                onShowNotification={showToast}
+              />
 
-          <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-headline-md text-headline-md text-primary">Address Book</h3>
-              <button className="text-primary font-bold font-label-lg text-label-lg hover:underline transition-all">Add New Address</button>
+              {/* Allergens Selection Section */}
+              <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
+                <div className="flex flex-col mb-6">
+                  <h3 className="font-headline-md text-headline-md text-primary mb-1">Dị ứng & Chế độ ăn</h3>
+                  <p className="text-on-surface-variant text-body-md">
+                    Chọn các chất gây dị ứng hoặc chế độ ăn của bạn để chúng tôi có thể đưa ra cảnh báo an toàn khi bạn mua sắm thực phẩm.
+                  </p>
+                </div>
+
+                {allergens.length > 0 ? (
+                  <div className="flex flex-wrap gap-3">
+                    {allergens.map((allergen) => {
+                      const isSelected = selectedAllergens.includes(allergen.id);
+                      return (
+                        <button
+                          key={allergen.id}
+                          onClick={() => handleToggleAllergen(allergen.id)}
+                          className={`flex items-center gap-2 px-4 py-2 rounded-full border text-body-md font-semibold transition-all duration-200 cursor-pointer active:scale-95 ${
+                            isSelected
+                              ? 'bg-primary text-white border-primary shadow-sm'
+                              : 'bg-surface-container-low text-on-surface-variant border-outline-variant hover:bg-surface-container-high'
+                          }`}
+                        >
+                          <span className="material-symbols-outlined text-[16px]">
+                            {isSelected ? 'check_circle' : 'add_circle'}
+                          </span>
+                          {allergen.name}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-on-surface-variant text-body-md">Loading dietary preferences...</p>
+                )}
+              </section>
             </div>
+          )}
 
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {user.addresses && user.addresses.length > 0 ? (
-                user.addresses.map((addr) => (
-                  <div key={addr.id || addr.street} className="p-5 border-2 border-primary bg-surface-container-low rounded-xl relative">
-                    {addr.isPrimary && <span className="absolute top-4 right-4 bg-primary text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase">Primary</span>}
-                    <div className="flex items-start gap-4">
-                      <span className="material-symbols-outlined text-primary" data-icon="home">home</span>
-                      <div>
-                        <p className="font-bold font-body-lg text-body-lg mb-1">{addr.label ?? 'Address'}</p>
-                        <p className="text-on-surface-variant font-body-md text-body-md leading-relaxed">{addr.street}<br />{addr.city}{addr.state ? `, ${addr.state}` : ''}{addr.postalCode ? ` ${addr.postalCode}` : ''}<br />{addr.country}</p>
-                        <div className="mt-4 flex gap-4">
-                          <button className="text-primary font-bold text-label-lg">Edit</button>
-                          <button className="text-on-surface-variant font-bold text-label-lg">Remove</button>
+          {activeTab === 'addresses' && (
+            <div className="space-y-12 animate-in fade-in duration-300">
+              {/* Address Book Section */}
+              <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="font-headline-md text-headline-md text-primary">Sổ địa chỉ nhận hàng</h3>
+                  <button
+                    onClick={() => handleOpenAddressModal()}
+                    className="text-primary font-bold font-label-lg text-label-lg hover:underline transition-all cursor-pointer"
+                  >
+                    Thêm địa chỉ mới
+                  </button>
+                </div>
+
+                {isAddressesLoading ? (
+                  <p className="text-on-surface-variant text-body-md">Loading addresses...</p>
+                ) : (
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    {addresses.length > 0 ? (
+                      addresses.map((addr) => {
+                        const displayLabel = addr.label === 'OTHER' ? (addr.customLabel || 'Khác') : (addr.label === 'HOME' ? 'Nhà riêng' : 'Văn phòng');
+                        const iconName = addr.label === 'HOME' ? 'home' : addr.label === 'WORK' ? 'work' : 'location_on';
+
+                        return (
+                          <div key={addr.id} className="p-5 border border-outline-variant bg-surface-container-low rounded-xl relative hover:border-primary/50 transition-all">
+                            {addr.isDefault && (
+                              <span className="absolute top-4 right-4 bg-primary text-white px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider">
+                                Mặc định
+                              </span>
+                            )}
+                            <div className="flex items-start gap-4">
+                              <span className="material-symbols-outlined text-primary text-[24px]" data-icon={iconName}>
+                                {iconName}
+                              </span>
+                              <div className="space-y-2 w-full pr-12">
+                                <p className="font-bold font-body-lg text-body-lg mb-1 flex items-center gap-2">
+                                  {displayLabel}
+                                </p>
+                                <p className="font-semibold text-body-md text-on-surface">
+                                  {addr.recipientName} ({addr.recipientPhone})
+                                </p>
+                                <p className="text-on-surface-variant font-body-md text-body-md leading-relaxed">
+                                  {addr.fullAddress}
+                                  {addr.ward && `, ${addr.ward}`}
+                                  {addr.district && `, ${addr.district}`}
+                                  {addr.city && `, ${addr.city}`}
+                                </p>
+                                <div className="pt-2 flex gap-4 border-t border-outline-variant/30">
+                                  <button
+                                    onClick={() => handleOpenAddressModal(addr)}
+                                    className="text-primary hover:text-primary-container font-bold text-label-lg transition-colors cursor-pointer"
+                                  >
+                                    Sửa
+                                  </button>
+                                  <button
+                                    onClick={() => addr.id && handleDeleteAddress(addr.id)}
+                                    className="text-on-surface-variant hover:text-error font-bold text-label-lg transition-colors cursor-pointer"
+                                  >
+                                    Xóa
+                                  </button>
+                                </div>
+                              </div>
+                            </div>
+                          </div>
+                        );
+                      })
+                    ) : (
+                      <div
+                        onClick={() => handleOpenAddressModal()}
+                        className="p-8 border border-outline-variant hover:border-primary transition-colors rounded-xl flex items-center justify-center border-dashed cursor-pointer min-h-[160px] w-full col-span-2"
+                      >
+                        <div className="text-center space-y-2">
+                          <span className="material-symbols-outlined text-outline text-[32px]" data-icon="add_location">
+                            add_location
+                          </span>
+                          <p className="text-outline font-label-lg">Thêm địa chỉ nhận hàng</p>
                         </div>
                       </div>
-                    </div>
+                    )}
                   </div>
-                ))
-              ) : (
-                <div className="p-5 border border-outline-variant hover:border-primary transition-colors rounded-xl flex items-center justify-center border-dashed cursor-pointer">
-                  <div className="text-center space-y-2">
-                    <span className="material-symbols-outlined text-outline" data-icon="add_location">add_location</span>
-                    <p className="text-outline font-label-lg">Add Alternative Address</p>
-                  </div>
+                )}
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'orders' && (
+            <div className="space-y-12 animate-in fade-in duration-300">
+              {/* Recent Orders Section */}
+              <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="font-headline-md text-headline-md text-primary">Đơn hàng gần đây</h3>
+                  <button className="text-primary font-bold font-label-lg text-label-lg hover:underline transition-all">
+                    Xem tất cả đơn hàng
+                  </button>
+                </div>
+
+                <div className="overflow-x-auto">
+                  <table className="w-full text-left">
+                    <thead className="border-b border-outline-variant">
+                      <tr>
+                        <th className="pb-4 font-label-lg text-label-lg text-on-surface-variant">Mã đơn hàng</th>
+                        <th className="pb-4 font-label-lg text-label-lg text-on-surface-variant">Ngày mua</th>
+                        <th className="pb-4 font-label-lg text-label-lg text-on-surface-variant">Trạng thái</th>
+                        <th className="pb-4 font-label-lg text-label-lg text-on-surface-variant text-right">Tổng cộng</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y divide-outline-variant">
+                      {recentOrders.length > 0 ? (
+                        recentOrders.map((o) => (
+                          <tr key={o.id} className="hover:bg-surface-container-low transition-colors group cursor-pointer">
+                            <td className="py-4 font-body-md text-body-md font-bold text-primary">{o.id}</td>
+                            <td className="py-4 font-body-md text-body-md">{new Date(o.date).toLocaleDateString()}</td>
+                            <td className="py-4">
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded ${o.status === 'Out for Delivery' ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container-high text-on-surface-variant'} text-[12px] font-bold`}>
+                                {o.status === 'Out for Delivery' && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
+                                {o.status}
+                              </span>
+                            </td>
+                            <td className="py-4 font-price-display text-price-display text-right">${o.total.toFixed(2)}</td>
+                          </tr>
+                        ))
+                      ) : (
+                        <tr>
+                          <td className="py-4" colSpan={4}>Chưa có đơn hàng nào.</td>
+                        </tr>
+                      )}
+                    </tbody>
+                  </table>
+                </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'settings' && (
+            <div className="space-y-12 animate-in fade-in duration-300">
+              <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10 space-y-4">
+                <h3 className="font-headline-md text-headline-md text-primary">Cài đặt tài khoản</h3>
+                <p className="text-on-surface-variant text-body-md">
+                  Chức năng cấu hình bảo mật, đổi mật khẩu và thiết lập quyền riêng tư đang được phát triển. Vui lòng quay lại sau!
+                </p>
+              </section>
+            </div>
+          )}
+        </div>
+      </div>
+
+      {/* Edit Profile Modal */}
+      {isProfileModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-md p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in duration-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-headline-md font-bold text-primary">Edit Profile</h3>
+              <button
+                onClick={() => setIsProfileModalOpen(false)}
+                className="text-on-surface-variant hover:text-on-surface p-1 rounded-full hover:bg-surface-container-high transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleProfileSubmit} className="space-y-4">
+              <div className="flex flex-col gap-1">
+                <label className="text-label-lg font-bold text-on-surface-variant">Full Name *</label>
+                <input
+                  type="text"
+                  required
+                  value={profileForm.fullName}
+                  onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                  placeholder="Enter full name"
+                />
+              </div>
+              <div className="flex flex-col gap-1">
+                <label className="text-label-lg font-bold text-on-surface-variant">Phone Number</label>
+                <input
+                  type="tel"
+                  value={profileForm.phone}
+                  onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                  placeholder="Enter phone number"
+                />
+              </div>
+              <div className="pt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsProfileModalOpen(false)}
+                  className="px-5 py-2 rounded-full border border-outline text-on-surface-variant font-bold hover:bg-surface-container-high transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isProfileSubmitting}
+                  className="px-6 py-2 rounded-full bg-primary text-white font-bold hover:bg-primary/95 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isProfileSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                  Save Changes
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Address Form Modal */}
+      {isAddressModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm overflow-y-auto">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-lg p-6 md:p-8 shadow-2xl space-y-6 my-8 animate-in fade-in duration-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-headline-md font-bold text-primary">
+                {editingAddress ? 'Edit Address' : 'Add New Address'}
+              </h3>
+              <button
+                onClick={() => setIsAddressModalOpen(false)}
+                className="text-on-surface-variant hover:text-on-surface p-1 rounded-full hover:bg-surface-container-high transition-colors cursor-pointer"
+              >
+                <span className="material-symbols-outlined">close</span>
+              </button>
+            </div>
+            <form onSubmit={handleAddressSubmit} className="space-y-4">
+              {/* Type selector (HOME, WORK, OTHER) */}
+              <div className="flex flex-col gap-2">
+                <label className="text-label-lg font-bold text-on-surface-variant">Label Type</label>
+                <div className="flex gap-2">
+                  {(['HOME', 'WORK', 'OTHER'] as const).map((lbl) => (
+                    <button
+                      key={lbl}
+                      type="button"
+                      onClick={() => setAddressForm({ ...addressForm, label: lbl })}
+                      className={`flex-1 py-2 border rounded-xl font-label-lg font-semibold transition-all cursor-pointer ${
+                        addressForm.label === lbl
+                          ? 'bg-primary text-white border-primary'
+                          : 'bg-surface-container-low text-on-surface-variant border-outline-variant hover:bg-surface-container-high'
+                      }`}
+                    >
+                      {lbl}
+                    </button>
+                  ))}
+                </div>
+              </div>
+
+              {addressForm.label === 'OTHER' && (
+                <div className="flex flex-col gap-1">
+                  <label className="text-label-lg font-bold text-on-surface-variant">Custom Label</label>
+                  <input
+                    type="text"
+                    value={addressForm.customLabel}
+                    onChange={(e) => setAddressForm({ ...addressForm, customLabel: e.target.value })}
+                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                    placeholder="e.g. Grandma's House"
+                  />
                 </div>
               )}
-            </div>
-          </section>
 
-          <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
-            <div className="flex justify-between items-center mb-6">
-              <h3 className="font-headline-md text-headline-md text-primary">Recent Orders</h3>
-              <button className="text-primary font-bold font-label-lg text-label-lg hover:underline transition-all">View All Orders</button>
-            </div>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-label-lg font-bold text-on-surface-variant">Recipient Name *</label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.recipientName}
+                    onChange={(e) => setAddressForm({ ...addressForm, recipientName: e.target.value })}
+                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                    placeholder="Recipient's name"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-label-lg font-bold text-on-surface-variant">Recipient Phone *</label>
+                  <input
+                    type="tel"
+                    required
+                    value={addressForm.recipientPhone}
+                    onChange={(e) => setAddressForm({ ...addressForm, recipientPhone: e.target.value })}
+                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                    placeholder="Recipient's phone"
+                  />
+                </div>
+              </div>
 
-            <div className="overflow-x-auto">
-              <table className="w-full text-left">
-                <thead className="border-b border-outline-variant">
-                  <tr>
-                    <th className="pb-4 font-label-lg text-label-lg text-on-surface-variant">Order ID</th>
-                    <th className="pb-4 font-label-lg text-label-lg text-on-surface-variant">Date</th>
-                    <th className="pb-4 font-label-lg text-label-lg text-on-surface-variant">Status</th>
-                    <th className="pb-4 font-label-lg text-label-lg text-on-surface-variant text-right">Total</th>
-                  </tr>
-                </thead>
-                <tbody className="divide-y divide-outline-variant">
-                  {user.recentOrders && user.recentOrders.length > 0 ? (
-                    user.recentOrders.map((o) => (
-                      <tr key={o.id} className="hover:bg-surface-container-low transition-colors group cursor-pointer">
-                        <td className="py-4 font-body-md text-body-md font-bold text-primary">{o.id}</td>
-                        <td className="py-4 font-body-md text-body-md">{new Date(o.date).toLocaleDateString()}</td>
-                        <td className="py-4">
-                          <span className={`inline-flex items-center gap-1 px-2 py-1 rounded ${o.status === 'Out for Delivery' ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container-high text-on-surface-variant'} text-[12px] font-bold`}>
-                            {o.status === 'Out for Delivery' && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
-                            {o.status}
-                          </span>
-                        </td>
-                        <td className="py-4 font-price-display text-price-display text-right">${o.total.toFixed(2)}</td>
-                      </tr>
-                    ))
-                  ) : (
-                    <tr>
-                      <td className="py-4" colSpan={4}>No orders yet.</td>
-                    </tr>
-                  )}
-                </tbody>
-              </table>
-            </div>
-          </section>
+              <div className="flex flex-col gap-1">
+                <label className="text-label-lg font-bold text-on-surface-variant">Detailed Address *</label>
+                <input
+                  type="text"
+                  required
+                  value={addressForm.fullAddress}
+                  onChange={(e) => setAddressForm({ ...addressForm, fullAddress: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                  placeholder="Street name, building/apartment info"
+                />
+              </div>
+
+              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-label-lg font-bold text-on-surface-variant">Ward / Commune</label>
+                  <input
+                    type="text"
+                    value={addressForm.ward}
+                    onChange={(e) => setAddressForm({ ...addressForm, ward: e.target.value })}
+                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                    placeholder="Ward"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-label-lg font-bold text-on-surface-variant">District</label>
+                  <input
+                    type="text"
+                    value={addressForm.district}
+                    onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
+                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                    placeholder="District"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-label-lg font-bold text-on-surface-variant">City / Province *</label>
+                  <input
+                    type="text"
+                    required
+                    value={addressForm.city}
+                    onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                    placeholder="City"
+                  />
+                </div>
+              </div>
+
+              <div className="flex items-center gap-2 pt-2">
+                <input
+                  type="checkbox"
+                  id="isDefaultAddress"
+                  checked={addressForm.isDefault}
+                  onChange={(e) => setAddressForm({ ...addressForm, isDefault: e.target.checked })}
+                  className="w-4 h-4 text-primary bg-surface-container-low border-outline-variant rounded focus:ring-primary focus:ring-offset-0 cursor-pointer"
+                />
+                <label htmlFor="isDefaultAddress" className="text-body-md font-semibold text-on-surface select-none cursor-pointer">
+                  Set as default shipping address
+                </label>
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsAddressModalOpen(false)}
+                  className="px-5 py-2 rounded-full border border-outline text-on-surface-variant font-bold hover:bg-surface-container-high transition-all cursor-pointer"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="submit"
+                  disabled={isAddressSubmitting}
+                  className="px-6 py-2 rounded-full bg-primary text-white font-bold hover:bg-primary/95 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isAddressSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                  Save Address
+                </button>
+              </div>
+            </form>
+          </div>
         </div>
+      )}
+
+      {/* Slide-in Toast Notifications */}
+      <div className="fixed bottom-6 right-6 z-50 flex flex-col gap-2 max-w-sm w-full">
+        {toasts.map((toast) => (
+          <div
+            key={toast.id}
+            className={`flex items-center justify-between p-4 rounded-xl shadow-lg border text-body-md font-semibold animate-in slide-in-from-bottom-5 duration-300 ${
+              toast.type === 'success'
+                ? 'bg-primary-container border-primary/20 text-on-primary-container'
+                : 'bg-red-50 border-red-200 text-red-800'
+            }`}
+          >
+            <div className="flex items-center gap-2">
+              <span className="material-symbols-outlined text-[20px]">
+                {toast.type === 'success' ? 'check_circle' : 'error'}
+              </span>
+              <span>{toast.message}</span>
+            </div>
+            <button
+              onClick={() => setToasts((prev) => prev.filter((t) => t.id !== toast.id))}
+              className="text-on-surface-variant hover:text-on-surface ml-4 p-0.5 rounded-full hover:bg-black/5 cursor-pointer"
+            >
+              <span className="material-symbols-outlined text-[16px]">close</span>
+            </button>
+          </div>
+        ))}
       </div>
     </main>
   );
 };
 
 export default UserInfoPage;
-

@@ -1,8 +1,9 @@
 import { Navigate } from 'react-router-dom';
+import { isAdminRole } from '../../services/apiClient';
 
 /**
  * AdminGuard — Chặn user thường truy cập /admin.
- * Kiểm tra: đã login (có accessToken) + role === "ADMIN"
+ * Kiểm tra: đã login (có accessToken) + role === "ROLE_ADMIN"
  * Nếu không đủ điều kiện → redirect về /login
  */
 export default function AdminGuard({ children }: { children: React.ReactNode }) {
@@ -15,7 +16,7 @@ export default function AdminGuard({ children }: { children: React.ReactNode }) 
   }
 
   // Đã đăng nhập nhưng không phải ADMIN → về trang chủ
-  if (role !== 'ADMIN') {
+  if (!isAdminRole(role)) {
     return <Navigate to="/" replace />;
   }
 

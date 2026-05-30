@@ -17,6 +17,7 @@ export interface AdminProduct {
   name: string;
   sku: string;
   category: string;
+  categoryId?: string;
   price: number;
   salePrice?: number;
   stock: number;
@@ -24,6 +25,10 @@ export interface AdminProduct {
   organic: boolean;
   image: string;
   updatedAt: string;
+  unit?: string;
+  description?: string;
+  storageInstructions?: string;
+  detailedDescription?: string;
   featured?: boolean;
   isNew?: boolean;
 }

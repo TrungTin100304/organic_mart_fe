@@ -26,11 +26,10 @@ export default function Login() {
       const response = await login({ email, password });
       console.log("Login success:", response);
 
-      // Save tokens (can also use a generic storage or Context later)
-      if (response.data) {
-        localStorage.setItem("accessToken", response.data.accessToken);
-        localStorage.setItem("refreshToken", response.data.refreshToken);
-      }
+      localStorage.setItem("accessToken", response.accessToken);
+      localStorage.setItem("refreshToken", response.refreshToken);
+      localStorage.setItem("userEmail", response.email);
+      localStorage.setItem("userRole", response.role);
 
       navigate("/"); // Redirect to home on success
     } catch (err: any) {

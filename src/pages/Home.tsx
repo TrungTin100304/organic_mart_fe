@@ -1,8 +1,10 @@
 import { Link } from "react-router-dom";
-import { PRODUCTS } from "@/types";
+import { useEffect, useState } from "react";
+import type { Product } from "@/types";
 import ProductCard from "../components/ProductCard";
 import HeroBanner from "../components/HeroBanner";
 import { motion } from "motion/react";
+import { getProducts } from "@/services/productService";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -22,6 +24,24 @@ const staggerContainer = {
 };
 
 export default function Home() {
+  const [products, setProducts] = useState<Product[]>([]);
+  const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+
+  useEffect(() => {
+    let mounted = true;
+    getProducts({ page: 0, size: 12 })
+      .then((page) => {
+        if (mounted) setProducts(page.content);
+      })
+      .catch((error) => console.error("Failed to load products", error))
+      .finally(() => {
+        if (mounted) setIsLoadingProducts(false);
+      });
+    return () => {
+      mounted = false;
+    };
+  }, []);
+
   return (
     <div className="flex flex-col bg-background min-h-screen">
       {/* Hero Carousel Section (now a reusable component) */}
@@ -43,8 +63,11 @@ export default function Home() {
             </h2>
             <Link className="text-primary font-bold hover:underline" to="/shop">Xem tất cả</Link>
           </div>
+          {isLoadingProducts ? (
+            <p className="text-on-surface-variant">Dang tai san pham...</p>
+          ) : (
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-gutter">
-            {PRODUCTS.map((p, idx) => (
+            {products.map((p, idx) => (
               <motion.div
                 key={p.id}
                 variants={{
@@ -56,6 +79,7 @@ export default function Home() {
               </motion.div>
             ))}
           </div>
+          )}
         </motion.section>
 
         {/* Khuyến mãi đặc biệt (Asymmetric Banner) */}
@@ -106,7 +130,7 @@ export default function Home() {
             <Link className="text-primary font-bold hover:underline" to="/shop">Xem tất cả</Link>
           </div>
           <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-gutter">
-            {[...PRODUCTS].reverse().map((p, idx) => (
+            {[...products].reverse().map((p, idx) => (
               <motion.div
                 key={p.id + "_fav"}
                 variants={{

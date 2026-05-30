@@ -1,13 +1,23 @@
 // Types for user domain
+export type Role = 'ROLE_USER' | 'ROLE_ADMIN';
 export interface Address {
-  id?: string;
-  label?: string;
-  street: string;
-  city: string;
-  state?: string;
-  postalCode?: string;
-  country?: string;
-  isPrimary?: boolean;
+  id?: number;
+  label: 'HOME' | 'WORK' | 'OTHER';
+  customLabel?: string;
+  recipientName: string;
+  recipientPhone: string;
+  fullAddress: string;
+  ward?: string;
+  district?: string;
+  city?: string;
+  isDefault: boolean;
+  createdAt?: string;
+}
+
+export interface Allergen {
+  id: number;
+  name: string;
+  createdAt?: string;
 }
 
 export interface OrderSummary {
@@ -18,13 +28,18 @@ export interface OrderSummary {
 }
 
 export interface User {
-  id: string;
+  id: string | number;
   fullName: string;
   email: string;
   phone?: string;
+  phoneNumber?: string;
   avatarUrl?: string;
   status?: string;
+  role?: Role | string;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
   addresses?: Address[];
   recentOrders?: OrderSummary[];
+  allergens?: Allergen[];
 }
-

@@ -2,6 +2,8 @@ import { useState, useRef, useEffect } from 'react';
 import { Search, Bell, Menu, ChevronDown, Download, Plus, User, LogOut, Settings } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
+import { getCurrentUser } from '../../services/userService';
+import { logout } from '../../services/authService';
 
 interface AdminTopbarProps {
   onMenuClick: () => void;
@@ -10,6 +12,7 @@ interface AdminTopbarProps {
 export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
   const [showNotif, setShowNotif] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
+  const [adminName, setAdminName] = useState('Admin');
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -21,6 +24,27 @@ export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
     document.addEventListener('mousedown', handler);
     return () => document.removeEventListener('mousedown', handler);
   }, []);
+
+  useEffect(() => {
+    getCurrentUser()
+      .then((user) => setAdminName(user.fullName || user.email))
+      .catch(() => setAdminName('Admin'));
+  }, []);
+
+  const handleLogout = async () => {
+    const refreshToken = localStorage.getItem('refreshToken');
+    if (refreshToken) {
+      try {
+        await logout({ refreshToken });
+      } catch {
+        // Clear local session even if backend logout fails.
+      }
+    }
+    localStorage.removeItem('accessToken');
+    localStorage.removeItem('refreshToken');
+    localStorage.removeItem('userEmail');
+    localStorage.removeItem('userRole');
+  };
 
   const notifications = [
     { id: 1, text: 'Đơn hàng #ORD-2025-001 mới cần xác nhận', time: '5 phút trước', unread: true },
@@ -87,8 +111,8 @@ export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
         {/* Profile */}
         <div ref={profileRef} className="relative">
           <button onClick={() => { setShowProfile(!showProfile); setShowNotif(false); }} className="flex items-center gap-2 pl-2 pr-1 py-1 rounded-xl hover:bg-surface-container transition-colors">
-            <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xs">QH</div>
-            <span className="hidden md:block text-sm font-medium text-on-surface">Quang Huy</span>
+            <div className="w-8 h-8 rounded-full bg-primary-container flex items-center justify-center text-on-primary-container font-bold text-xs">{adminName.split(' ').map((part) => part[0]).slice(0, 2).join('').toUpperCase()}</div>
+            <span className="hidden md:block text-sm font-medium text-on-surface">{adminName}</span>
             <ChevronDown className="w-3.5 h-3.5 text-on-surface-variant hidden md:block" />
           </button>
           <AnimatePresence>
@@ -104,7 +128,7 @@ export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
                   <Settings className="w-4 h-4 text-on-surface-variant" /> Cài đặt
                 </Link>
                 <hr className="border-outline-variant/20 my-1" />
-                <Link to="/" className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
+                <Link to="/" onClick={handleLogout} className="flex items-center gap-3 px-4 py-2.5 text-sm text-red-600 hover:bg-red-50 transition-colors">
                   <LogOut className="w-4 h-4" /> Đăng xuất
                 </Link>
               </motion.div>
