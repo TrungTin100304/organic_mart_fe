@@ -1,29 +1,28 @@
-import type { UserAddress } from '../types/address';
+import type { Address } from "../types/user";
+import { apiRequest, toJsonBody } from "./apiClient";
 
-const API_URL = 'http://localhost:8080/api/v1';
+export const getAllAddresses = () =>
+  apiRequest<Address[]>("/user-addresses", { requireAuth: true });
 
-const getAuthHeaders = () => {
-  const token = localStorage.getItem('token');
-  return {
-    'Content-Type': 'application/json',
-    'Authorization': `Bearer ${token}`
-  };
-};
+export const getAddressById = (id: string | number) =>
+  apiRequest<Address>(`/user-addresses/${id}`, { requireAuth: true });
 
-export const getUserAddresses = async (): Promise<UserAddress[]> => {
-  const response = await fetch(`${API_URL}/user-addresses`, {
-    headers: getAuthHeaders(),
+export const createAddress = (data: Omit<Address, "id" | "createdAt">) =>
+  apiRequest<Address>("/user-addresses", {
+    method: "POST",
+    body: toJsonBody(data),
+    requireAuth: true,
   });
-  if (!response.ok) throw new Error('Failed to fetch addresses');
-  return response.json();
-};
 
-export const createUserAddress = async (address: Omit<UserAddress, 'id'>): Promise<UserAddress> => {
-  const response = await fetch(`${API_URL}/user-addresses`, {
-    method: 'POST',
-    headers: getAuthHeaders(),
-    body: JSON.stringify(address),
+export const updateAddress = (id: string | number, data: Omit<Address, "createdAt">) =>
+  apiRequest<Address>(`/user-addresses/${id}`, {
+    method: "PUT",
+    body: toJsonBody(data),
+    requireAuth: true,
   });
-  if (!response.ok) throw new Error('Failed to create address');
-  return response.json();
-};
+
+export const deleteAddress = (id: string | number) =>
+  apiRequest<void>(`/user-addresses/${id}`, {
+    method: "DELETE",
+    requireAuth: true,
+  });

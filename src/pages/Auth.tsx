@@ -26,12 +26,16 @@ export default function Auth() {
   const [showRegPassword, setShowRegPassword] = useState(false);
 
   useEffect(() => {
+    if (localStorage.getItem("accessToken")) {
+      navigate(localStorage.getItem("userRole") === "ROLE_ADMIN" ? "/admin" : "/account");
+      return;
+    }
     setIsLogin(location.pathname === "/login");
     // Clear errors khi đổi tab
     setLoginError("");
     setRegError("");
     setRegSuccess("");
-  }, [location]);
+  }, [location, navigate]);
 
   const toggleAuth = () => {
     const newPath = isLogin ? "/register" : "/login";
@@ -48,11 +52,17 @@ export default function Auth() {
       const response = await login({ email: loginEmail, password: loginPassword });
       console.log("Login success:", response);
 
-      if (response.data) {
-        localStorage.setItem("accessToken", response.data.accessToken);
-        localStorage.setItem("refreshToken", response.data.refreshToken);
+      localStorage.setItem("accessToken", response.accessToken);
+      localStorage.setItem("refreshToken", response.refreshToken);
+      localStorage.setItem("userEmail", response.email);
+      localStorage.setItem("userRole", response.role);
+
+      // Redirect based on role
+      if (response.role === "ROLE_ADMIN") {
+        navigate("/admin");
+      } else {
+        navigate("/");
       }
-      navigate("/");
     } catch (err: any) {
       console.error("Login Error:", err);
       let errorMessage = err.message || "Đăng nhập thất bại, vui lòng kiểm tra lại ID/Mật khẩu";
