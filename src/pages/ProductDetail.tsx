@@ -6,6 +6,7 @@ import { motion } from "motion/react";
 import type { Product } from "../types";
 import { getProductById, getProducts } from "../services/productService";
 import { addCartItem } from "../services/cartService";
+import { getAllergenDisplayName, getAllergenKey } from "../utils/productAllergens";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -116,8 +117,8 @@ export default function ProductDetail() {
                 <h4 className="font-bold text-base text-amber-800 mb-3">Các chất gây dị ứng</h4>
                 <div className="flex flex-wrap gap-2">
                   {product.allergens.map((allergen) => (
-                    <span key={allergen} className="inline-flex items-center px-3 py-1 rounded-full border border-amber-300 bg-amber-100 text-amber-900 text-sm">
-                      {allergen}
+                    <span key={getAllergenKey(allergen)} className="inline-flex items-center px-3 py-1 rounded-full border border-amber-300 bg-amber-100 text-amber-900 text-sm">
+                      {getAllergenDisplayName(allergen)}
                     </span>
                   ))}
                 </div>
@@ -202,9 +203,9 @@ export default function ProductDetail() {
           {product.allergens && product.allergens.length > 0 ? (
             <ul className="space-y-3">
               {product.allergens.map((allergen) => (
-                <li key={allergen.id} className="flex gap-3">
+                <li key={getAllergenKey(allergen)} className="flex gap-3">
                   <CheckCircle2 className="text-primary size-5 flex-shrink-0" />
-                  <span className="text-sm font-medium text-on-surface-variant">{allergen.name}</span>
+                  <span className="text-sm font-medium text-on-surface-variant">{getAllergenDisplayName(allergen)}</span>
                 </li>
               ))}
             </ul>
