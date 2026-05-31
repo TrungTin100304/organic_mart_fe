@@ -2,6 +2,11 @@ node_modules/
 build/
 dist/
 coverage/
+test-artifacts/
+chrome-smoke-profile/
+chrome-smoke-*/
+ui-*.png
+*-local-shot.png
 .DS_Store
 *.log
 .env*

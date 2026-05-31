@@ -1,10 +1,68 @@
+import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
-import UserMenu from "./UserMenu";
+import { getCurrentCart } from "@/services/cartService";
 
 export default function Navbar() {
   const location = useLocation();
   const isAdmin = location.pathname.startsWith("/admin");
   const isAuthPage = ["/login", "/register"].includes(location.pathname);
+  const [isLoggedIn, setIsLoggedIn] = useState(false);
+  const [cartCount, setCartCount] = useState(0);
+
+  useEffect(() => {
+    const hasToken = !!localStorage.getItem("accessToken");
+    setIsLoggedIn(hasToken);
+    if (!hasToken) {
+      setCartCount(0);
+      return;
+    }
+
+    let mounted = true;
+    const lastFailure = (window as any).__lastCartFetchFailure || 0;
+    const COOLDOWN_MS = 30 * 1000; // 30 seconds
+    const now = Date.now();
+    if (now - lastFailure < COOLDOWN_MS) {
+      // skip fetch to avoid repeated server errors
+      return;
+    }
+
+    getCurrentCart()
+      .then((cart) => {
+        if (!mounted) return;
+        setCartCount(cart.distinctItemCount || 0);
+      })
+      .catch(() => {
+        if (!mounted) return;
+        setCartCount(0);
+        // record the failure timestamp globally so other parts can respect cooldown
+        (window as any).__lastCartFetchFailure = Date.now();
+      });
+    return () => {
+      mounted = false;
+    };
+  }, [location]);
+
+  useEffect(() => {
+    const handleCartUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const updatedCart = customEvent.detail;
+      if (updatedCart && typeof updatedCart.distinctItemCount === "number") {
+        setCartCount(updatedCart.distinctItemCount);
+      } else {
+        getCurrentCart()
+          .then((cart) => setCartCount(cart.distinctItemCount || 0))
+          .catch(() => {
+            setCartCount(0);
+            (window as any).__lastCartFetchFailure = Date.now();
+          });
+      }
+    };
+
+    window.addEventListener("cart-updated", handleCartUpdate);
+    return () => {
+      window.removeEventListener("cart-updated", handleCartUpdate);
+    };
+  }, []);
 
   if (isAdmin || isAuthPage) return null;
 
@@ -65,10 +123,14 @@ export default function Navbar() {
             <button className="lg:hidden p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all">
               <span className="material-symbols-outlined text-[24px]">search</span>
             </button>
-            <UserMenu />
+            <Link to={isLoggedIn ? "/account" : "/login"} className="hidden sm:block p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all">
+              <span className="material-symbols-outlined text-[24px]">person</span>
+            </Link>
             <Link to="/cart" className="p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all relative group">
               <span className="material-symbols-outlined text-[24px]">shopping_cart</span>
-              <span className="absolute top-1.5 right-1.5 bg-primary text-white text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 font-bold border-2 border-surface">2</span>
+              {cartCount > 0 && (
+                <span className="absolute top-1.5 right-1.5 bg-primary text-white text-[10px] rounded-full min-w-[16px] h-4 flex items-center justify-center px-1 font-bold border-2 border-surface">{cartCount}</span>
+              )}
             </Link>
             <button className="hidden sm:block p-2 text-on-surface-variant hover:text-primary hover:bg-primary/5 rounded-full transition-all">
               <span className="material-symbols-outlined text-[24px]">support_agent</span>

@@ -1,23 +1,32 @@
-import type { Product } from './product';
+export interface Product {
+  id: string;
+  name: string;
+  slug?: string;
+  price: number;
+  image: string;
+  imageUrl?: string;
+  category: string;
+  categoryId?: string;
+  description: string;
+  storageInstructions?: string;
+  detailedDescription?: string;
+  unit?: string;
+  nutritionPer100g?: Record<string, unknown>;
+  organic: boolean;
+  isActive?: boolean;
+  createdAt?: string;
+  updatedAt?: string;
+  stock?: number;
+  allergens?: Array<{ id: number; name: string; createdAt?: string }>;
+  isNew?: boolean;
+  sale?: boolean;
+  rating?: number;
+  reviews?: number;
+}
 
-export type {
-  Product,
-  CartItem,
-  ProductCategory,
-  NutritionPer100g,
-  RawProduct,
-  PaginatedData,
-  ProductsApiResponse,
-  ProductsPage,
-  ProductApiTypes,
-} from './product';
-
-export type {
-  AddCartItemRequest,
-  CartApiItem,
-  Cart,
-  CartApiResponse,
-} from './cart';
+export interface CartItem extends Product {
+  quantity: number;
+}
 
 export const PRODUCTS: Product[] = [
   {

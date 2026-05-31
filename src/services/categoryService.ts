@@ -1,27 +1,18 @@
-import type { ProductCategory } from '../types/product';
+import { apiRequest, toJsonBody } from "./apiClient";
+import type { ProductCategoryResponse } from "./productService";
 
-const API_URL = 'http://localhost:8080/api/v1';
+export type ProductCategory = ProductCategoryResponse;
 
-export interface CategoryApiResponse {
-  data: ProductCategory[];
-  message: string;
-  status: number;
-}
+export const getProductCategories = () =>
+  apiRequest<ProductCategory[]>("/product-categories");
 
-export const getCategories = async (): Promise<ProductCategory[]> => {
-  const token = localStorage.getItem('accessToken') || localStorage.getItem('token');
-  const response = await fetch(`${API_URL}/product-categories`, {
-    method: 'GET',
-    headers: {
-      Accept: '*/*',
-      ...(token ? { Authorization: `Bearer ${token}` } : {}),
-    },
+export const createProductCategory = (data: { name: string; parentId?: number | null; sortOrder?: number }) =>
+  apiRequest<ProductCategory>("/product-categories", {
+    method: "POST",
+    body: toJsonBody({
+      name: data.name,
+      parentId: data.parentId ?? null,
+      sortOrder: data.sortOrder ?? 0,
+    }),
+    requireAuth: true,
   });
-
-  if (!response.ok) {
-    throw new Error('Failed to fetch product categories');
-  }
-
-  const payload = (await response.json()) as CategoryApiResponse;
-  return payload.data;
-};

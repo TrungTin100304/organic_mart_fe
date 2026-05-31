@@ -1,85 +1,116 @@
-import { Link } from "react-router-dom";
 import { useState } from "react";
-import type { Product } from "@/types";
-import { useCart } from "@/hooks/useCart";
+import { Link, useNavigate } from "react-router-dom";
+import { Eye, Leaf, ShoppingBag, ShoppingCart } from "lucide-react";
+import { Product } from "../types";
+import { addCartItem } from "../services/cartService";
 
 interface ProductCardProps {
   product: Product;
 }
 
+const fallbackImage = "/assets/hero.png";
+
 export default function ProductCard({ product }: ProductCardProps) {
-  const { addItem, isAdding, error, clearError } = useCart();
-  const [isAdded, setIsAdded] = useState(false);
+  const navigate = useNavigate();
+  const [isAdding, setIsAdding] = useState(false);
+  const [imageSrc, setImageSrc] = useState(product.image || product.imageUrl || fallbackImage);
 
   const handleAddToCart = async () => {
-    const productId = Number(product.id);
-    clearError();
-    setIsAdded(false);
+    if (!localStorage.getItem("accessToken")) {
+      navigate("/login");
+      return false;
+    }
 
-    const cart = await addItem(productId, 1);
-    if (cart) {
-      setIsAdded(true);
+    setIsAdding(true);
+    try {
+      await addCartItem(product.id, 1);
+      return true;
+    } catch (error: any) {
+      alert(error?.message || "Không thể thêm sản phẩm vào giỏ hàng.");
+      return false;
+    } finally {
+      setIsAdding(false);
     }
   };
 
+  const handleBuyNow = async () => {
+    if (!localStorage.getItem("accessToken")) {
+      navigate("/login");
+      return;
+    }
+    const added = await handleAddToCart();
+    if (added) navigate("/checkout");
+  };
+
   return (
-    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden group hover:shadow-lg transition-all duration-300 flex flex-col h-full">
-      <Link to={`/product/${product.id}`} className="relative aspect-[4/3] overflow-hidden bg-surface-container-low block group/image">
-        <img 
-          src={product.image} 
+    <article className="group flex h-full flex-col overflow-hidden rounded-xl border border-outline-variant/70 bg-white shadow-sm ring-1 ring-transparent transition-all duration-300 hover:-translate-y-1 hover:border-primary/30 hover:shadow-xl hover:shadow-primary/10">
+      <Link
+        to={`/product/${product.id}`}
+        className="relative block aspect-[4/3] overflow-hidden bg-surface-container-low"
+        aria-label={`Xem chi tiết ${product.name}`}
+      >
+        <img
+          src={imageSrc}
           alt={product.name}
-          className="w-full h-full object-cover group-hover/image:scale-110 transition-transform duration-500"
+          onError={() => setImageSrc(fallbackImage)}
+          className="h-full w-full object-cover transition-transform duration-500 group-hover:scale-105"
         />
-        <div className="absolute inset-0 bg-black/30 flex items-center justify-center opacity-0 group-hover/image:opacity-100 transition-opacity duration-300 z-10 backdrop-blur-[2px]">
-          <span className="bg-white text-primary px-4 py-2 rounded-full font-bold text-xs shadow-lg transform translate-y-4 group-hover/image:translate-y-0 transition-transform duration-300">
-            Xem chi tiết sản phẩm
+        <div className="absolute inset-0 flex items-center justify-center bg-primary/15 opacity-0 backdrop-blur-[1px] transition-opacity duration-300 group-hover:opacity-100">
+          <span className="inline-flex items-center gap-2 rounded-full bg-white/95 px-3 py-2 text-xs font-bold text-primary shadow-lg ring-1 ring-primary/10">
+            <Eye className="size-4" />
+            <span className="hidden sm:inline">Xem chi tiết</span>
           </span>
         </div>
-        {product.category?.trim() && (
-          <span className="absolute top-2 right-2 bg-primary text-white text-[10px] font-bold px-2 py-1 rounded z-20 shadow-sm uppercase">
-            {product.category}
+        {(product.isNew || product.organic) && (
+          <span className="absolute left-2 top-2 inline-flex items-center gap-1 rounded-full bg-white/95 px-2 py-1 text-[10px] font-extrabold uppercase tracking-wide text-primary shadow-sm ring-1 ring-primary/10">
+            <Leaf className="size-3" />
+            {product.isNew ? "Mới" : "Hữu cơ"}
           </span>
         )}
       </Link>
-      
-      <div className="p-stack-md text-center flex flex-col flex-grow">
-        <Link to={`/product/${product.id}`} className="hover:text-primary transition-colors">
-          <h3 className="text-body-lg font-bold mb-1 line-clamp-1">{product.name}</h3>
+
+      <div className="flex flex-1 flex-col p-3.5 sm:p-4">
+        <Link to={`/product/${product.id}`} className="transition-colors hover:text-primary">
+          <h3 className="min-h-[40px] text-sm font-bold leading-5 text-on-surface line-clamp-2">
+            {product.name}
+          </h3>
         </Link>
-        <p className="text-primary font-bold text-price-display mb-stack-md">
-          {product.price.toLocaleString()}₫
-          <span className="text-[10px] text-on-surface-variant/60 ml-1 font-medium">/ kg</span>
-        </p>
-        {product.allergens && product.allergens.length > 0 && (
-          <div className="mb-3 flex flex-wrap gap-2 justify-center">
-            {product.allergens.slice(0, 2).map((allergen) => (
-              <span key={allergen} className="text-[11px] px-2 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
-                {allergen}
-              </span>
-            ))}
-            {product.allergens.length > 2 && (
-              <span className="text-[11px] px-2 py-1 rounded-full bg-amber-100 text-amber-900 border border-amber-200">
-                +{product.allergens.length - 2} khác
-              </span>
-            )}
-          </div>
-        )}
-        <div className="mt-auto flex items-center gap-2">
+
+        <div className="mt-3 flex items-end gap-1">
+          <span className="text-lg font-extrabold leading-none text-primary">
+            {product.price.toLocaleString()}đ
+          </span>
+          <span className="text-[11px] font-semibold text-on-surface-variant/65">
+            / {product.unit || "kg"}
+          </span>
+        </div>
+
+        <div className="mt-4 grid grid-cols-[44px_minmax(0,1fr)] items-center gap-2">
           <button
-            type="button"
             onClick={handleAddToCart}
             disabled={isAdding}
-            className="flex-1 py-2 border border-primary text-primary font-bold rounded-lg hover:bg-primary hover:text-white transition-colors duration-300 text-xs truncate px-1 disabled:opacity-60 disabled:cursor-not-allowed"
+            className="size-11 shrink-0 rounded-xl border border-primary/40 bg-primary/5 text-primary transition-all duration-300 hover:bg-primary hover:text-white active:scale-95 disabled:cursor-not-allowed disabled:opacity-50 flex items-center justify-center"
+            title={isAdding ? "Đang thêm vào giỏ hàng..." : "Thêm vào giỏ hàng"}
+            aria-label={isAdding ? "Đang thêm vào giỏ hàng..." : "Thêm vào giỏ hàng"}
           >
-            {isAdding ? "Đang thêm..." : "Thêm giỏ"}
+            {isAdding ? (
+              <span className="size-4 rounded-full border-2 border-current border-t-transparent animate-spin" />
+            ) : (
+              <ShoppingCart className="size-5" />
+            )}
           </button>
-          <Link to="/checkout" className="flex-1 py-2 bg-primary text-white font-bold rounded-lg hover:brightness-110 transition-colors duration-300 text-xs truncate px-1 flex items-center justify-center">
-            Mua ngay
-          </Link>
+
+          <button
+            onClick={handleBuyNow}
+            className="flex h-11 min-w-0 items-center justify-center gap-2 rounded-xl bg-primary px-3 text-xs font-bold text-white shadow-sm shadow-primary/20 transition-all duration-300 hover:brightness-110 active:scale-95"
+            title="Mua ngay"
+            aria-label="Mua ngay"
+          >
+            <ShoppingBag className="size-4 shrink-0" />
+            <span className="truncate">Mua ngay</span>
+          </button>
         </div>
-        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
-        {isAdded && !error && <p className="mt-2 text-xs text-green-600">Đã thêm vào giỏ hàng</p>}
       </div>
-    </div>
+    </article>
   );
 }
