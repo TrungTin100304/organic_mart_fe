@@ -34,4 +34,3 @@ export const useProduct = (id?: string | null) => {
 
   return { product, isLoading, error, refetch: (newId?: string | number) => void getProductById(newId ?? id!).then(setProduct).catch((e) => setError(String(e)))};
 };
-

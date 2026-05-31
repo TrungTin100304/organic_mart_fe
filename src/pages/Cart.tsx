@@ -1,7 +1,8 @@
+import { useEffect } from "react";
 import { Link } from "react-router-dom";
 import { Minus, Plus, Trash2, ChevronRight, ShoppingCart, ArrowLeft, ArrowRight, ShieldCheck, CreditCard, Landmark, Banknote } from "lucide-react";
-import { PRODUCTS } from "@/types/index";
 import { motion } from "motion/react";
+import { useCart } from "@/hooks/useCart";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -19,6 +20,12 @@ const staggerContainer = {
 };
 
 export default function Cart() {
+  const { cart, isLoadingCart, fetchCart, updateItem, isUpdating, removeItem, isRemoving } = useCart();
+
+  useEffect(() => {
+    fetchCart();
+  }, [fetchCart]);
+
   return (
     <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
       <motion.nav 
@@ -39,60 +46,70 @@ export default function Cart() {
       
       <div className="flex flex-col lg:grid lg:grid-cols-12 gap-8 md:gap-10 items-start">
         <div className="w-full lg:col-span-8 flex flex-col gap-6 md:gap-8">
-          <div className="bg-white border border-outline-variant rounded-2xl overflow-x-auto shadow-sm">
-            <table className="w-full min-w-[600px] text-left border-collapse">
+          <div className="bg-white border border-outline-variant rounded-2xl overflow-hidden shadow-sm">
+            <table className="w-full text-left border-collapse table-fixed">
               <thead className="bg-surface-container-low text-on-surface-variant text-[10px] font-bold uppercase tracking-[0.1em]">
                 <tr>
-                  <th className="px-8 py-5">Sản phẩm</th>
-                  <th className="px-6 py-5 text-center">Giá</th>
-                  <th className="px-6 py-5 text-center">Số lượng</th>
-                  <th className="px-6 py-5 text-right">Tạm tính</th>
-                  <th className="px-8 py-5"></th>
+                  <th className="px-8 py-5 w-[40%]">Sản phẩm</th>
+                  <th className="px-6 py-5 text-center w-[15%]">Giá</th>
+                  <th className="px-6 py-5 text-center w-[20%]">Số lượng</th>
+                  <th className="px-6 py-5 text-right w-[15%]">Tạm tính</th>
+                  <th className="px-4 py-5 w-[10%]"></th>
                 </tr>
               </thead>
-              <motion.tbody 
+              <motion.tbody
                 variants={staggerContainer}
                 initial="initial"
                 animate="animate"
                 className="divide-y divide-outline-variant"
               >
-                {[PRODUCTS[0], PRODUCTS[1]].map((item) => (
-                  <motion.tr 
-                    variants={fadeIn}
-                    key={item.id} 
-                    className="group hover:bg-surface-bright/50 transition-colors"
-                  >
-                    <td className="px-8 py-8">
-                      <div className="flex items-center gap-6">
-                        <div className="size-20 bg-surface-container rounded-xl overflow-hidden flex-shrink-0 border border-outline-variant/30">
-                          <img src={item.image} alt="" className="size-full object-cover" />
+                {isLoadingCart ? (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-on-surface-variant font-medium">Đang tải giỏ hàng...</td>
+                  </tr>
+                ) : !cart || !cart.items || cart.items.length === 0 ? (
+                  <tr>
+                    <td colSpan={5} className="py-10 text-center text-on-surface-variant font-medium">Giỏ hàng của bạn đang trống.</td>
+                  </tr>
+                ) : (
+                  cart.items.map((item) => (
+                    <motion.tr
+                      variants={fadeIn}
+                      key={item.id}
+                      className="group hover:bg-surface-bright/50 transition-colors"
+                    >
+                      <td className="px-8 py-8">
+                        <div className="flex items-center gap-6">
+                          <div className="size-20 bg-surface-container rounded-xl overflow-hidden flex-shrink-0 border border-outline-variant/30">
+                            <img src={item.imageUrl} alt="" className="size-full object-cover" />
+                          </div>
+                          <div>
+                            <h3 className="font-bold text-on-surface leading-snug">{item.productName}</h3>
+                            <p className="text-xs text-on-surface-variant mt-1 font-medium italic opacity-70">Nông trại tươi sạch • Hữu cơ</p>
+                          </div>
                         </div>
-                        <div>
-                          <h3 className="font-bold text-on-surface leading-snug">{item.name}</h3>
-                          <p className="text-xs text-on-surface-variant mt-1 font-medium italic opacity-70">Nông trại tươi sạch • Hữu cơ</p>
+                      </td>
+                      <td className="px-6 py-8 text-center font-bold text-on-surface whitespace-nowrap">
+                        {item.unitPrice?.toLocaleString()}đ/{item.unit}
+                      </td>
+                      <td className="px-6 py-8">
+                        <div className="flex items-center justify-center">
+                          <div className="flex items-center border border-outline-variant rounded-full p-1 bg-surface-container-low">
+                            <button disabled={isUpdating || item.quantity <= 1} onClick={() => updateItem(item.productId, item.quantity - 1)} className="size-8 flex items-center justify-center text-primary hover:bg-white rounded-full transition-all shadow-sm disabled:opacity-50"><Minus size={14} /></button>
+                            <span className="w-10 text-center font-bold text-sm">{item.quantity}</span>
+                            <button disabled={isUpdating} onClick={() => updateItem(item.productId, item.quantity + 1)} className="size-8 flex items-center justify-center text-primary hover:bg-white rounded-full transition-all shadow-sm disabled:opacity-50"><Plus size={14} /></button>
+                          </div>
                         </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-8 text-center font-bold text-on-surface whitespace-nowrap">
-                      {item.price.toLocaleString()}đ
-                    </td>
-                    <td className="px-6 py-8">
-                      <div className="flex items-center justify-center">
-                        <div className="flex items-center border border-outline-variant rounded-full p-1 bg-surface-container-low">
-                          <button className="size-8 flex items-center justify-center text-primary hover:bg-white rounded-full transition-all shadow-sm"><Minus size={14} /></button>
-                          <span className="w-10 text-center font-bold text-sm">1</span>
-                          <button className="size-8 flex items-center justify-center text-primary hover:bg-white rounded-full transition-all shadow-sm"><Plus size={14} /></button>
-                        </div>
-                      </div>
-                    </td>
-                    <td className="px-6 py-8 text-right font-bold text-primary whitespace-nowrap">
-                      {item.price.toLocaleString()}đ
-                    </td>
-                    <td className="px-8 py-8 text-right">
-                      <button className="text-on-surface-variant hover:text-error transition-colors p-2 hover:bg-error-container rounded-full"><Trash2 size={18} /></button>
-                    </td>
-                  </motion.tr>
-                ))}
+                      </td>
+                      <td className="px-6 py-8 text-right font-bold text-primary whitespace-nowrap">
+                        {item.subtotal?.toLocaleString()}đ
+                      </td>
+                      <td className="px-4 py-8 text-right">
+                        <button disabled={isRemoving} onClick={() => removeItem(item.productId)} className="text-on-surface-variant hover:text-error transition-colors p-2 hover:bg-error-container rounded-full disabled:opacity-50"><Trash2 size={18} /></button>
+                      </td>
+                    </motion.tr>
+                  ))
+                )}
               </motion.tbody>
             </table>
           </div>
@@ -102,10 +119,6 @@ export default function Cart() {
               <ArrowLeft size={20} className="group-hover:-translate-x-1 transition-transform" />
               Tiếp tục mua sắm
             </Link>
-            <button className="flex items-center gap-2 px-8 py-4 text-on-surface-variant font-bold rounded-2xl hover:bg-surface-container-high transition-all w-full sm:w-auto justify-center">
-              <ShoppingCart size={20} />
-              Xóa giỏ hàng
-            </button>
           </div>
         </div>
 
@@ -120,7 +133,7 @@ export default function Cart() {
             <div className="space-y-6 pb-8 border-b border-outline-variant/50">
               <div className="flex justify-between items-center">
                 <span className="text-on-surface-variant font-medium">Tạm tính</span>
-                <span className="text-on-surface font-bold text-lg">97.000đ</span>
+                <span className="text-on-surface font-bold text-lg">{cart?.totalPrice?.toLocaleString() || 0}đ</span>
               </div>
               <div className="flex justify-between items-center">
                 <span className="text-on-surface-variant font-medium">Phí vận chuyển</span>
@@ -143,8 +156,7 @@ export default function Cart() {
             <div className="flex justify-between items-end mb-10">
               <span className="text-2xl font-bold text-on-surface tracking-tight">Tổng cộng</span>
               <div className="text-right">
-                <span className="text-3xl font-bold text-primary">117.000đ</span>
-                <p className="text-[10px] text-on-surface-variant uppercase tracking-[0.2em] mt-1 font-bold">(Đã bao gồm VAT)</p>
+                <span className="text-3xl font-bold text-primary">{((cart?.totalPrice || 0) + 20000).toLocaleString()}đ</span>
               </div>
             </div>
 

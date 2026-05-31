@@ -1,11 +1,27 @@
 import { Link } from "react-router-dom";
-import { Product } from "../types";
+import { useState } from "react";
+import type { Product } from "@/types";
+import { useCart } from "@/hooks/useCart";
 
 interface ProductCardProps {
   product: Product;
 }
 
 export default function ProductCard({ product }: ProductCardProps) {
+  const { addItem, isAdding, error, clearError } = useCart();
+  const [isAdded, setIsAdded] = useState(false);
+
+  const handleAddToCart = async () => {
+    const productId = Number(product.id);
+    clearError();
+    setIsAdded(false);
+
+    const cart = await addItem(productId, 1);
+    if (cart) {
+      setIsAdded(true);
+    }
+  };
+
   return (
     <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden group hover:shadow-lg transition-all duration-300 flex flex-col h-full">
       <Link to={`/product/${product.id}`} className="relative aspect-[4/3] overflow-hidden bg-surface-container-low block group/image">
@@ -35,13 +51,20 @@ export default function ProductCard({ product }: ProductCardProps) {
           <span className="text-[10px] text-on-surface-variant/60 ml-1 font-medium">/ kg</span>
         </p>
         <div className="mt-auto flex items-center gap-2">
-          <button className="flex-1 py-2 border border-primary text-primary font-bold rounded-lg hover:bg-primary hover:text-white transition-colors duration-300 text-xs truncate px-1">
-            Thêm giỏ
+          <button
+            type="button"
+            onClick={handleAddToCart}
+            disabled={isAdding}
+            className="flex-1 py-2 border border-primary text-primary font-bold rounded-lg hover:bg-primary hover:text-white transition-colors duration-300 text-xs truncate px-1 disabled:opacity-60 disabled:cursor-not-allowed"
+          >
+            {isAdding ? "Đang thêm..." : "Thêm giỏ"}
           </button>
           <Link to="/checkout" className="flex-1 py-2 bg-primary text-white font-bold rounded-lg hover:brightness-110 transition-colors duration-300 text-xs truncate px-1 flex items-center justify-center">
             Mua ngay
           </Link>
         </div>
+        {error && <p className="mt-2 text-xs text-red-600">{error}</p>}
+        {isAdded && !error && <p className="mt-2 text-xs text-green-600">Đã thêm vào giỏ hàng</p>}
       </div>
     </div>
   );

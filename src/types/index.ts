@@ -12,6 +12,13 @@ export type {
   ProductApiTypes,
 } from './product';
 
+export type {
+  AddCartItemRequest,
+  CartApiItem,
+  Cart,
+  CartApiResponse,
+} from './cart';
+
 export const PRODUCTS: Product[] = [
   {
     id: "1",

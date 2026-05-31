@@ -1,7 +1,9 @@
-import { useParams, Link } from "react-router-dom";
+import { useParams, Link, useNavigate } from "react-router-dom";
+import { useState } from "react";
 import { ChevronRight, Star, Truck, CheckCircle2, ShoppingCart, Minus, Plus } from "lucide-react";
 import { motion } from "motion/react";
 import { useProduct } from '@/hooks/useProduct';
+import { useCart } from "@/hooks/useCart";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -20,7 +22,36 @@ const staggerContainer = {
 
 export default function ProductDetail() {
   const { id } = useParams();
+  const navigate = useNavigate();
   const { product, isLoading, error } = useProduct(id as string | undefined);
+  const { addItem, isAdding, error: cartError, clearError } = useCart();
+  const [quantity, setQuantity] = useState(1);
+  const [isAdded, setIsAdded] = useState(false);
+
+  const productId = product ? Number(product.id) : NaN;
+
+  const changeQuantity = (step: number) => {
+    setQuantity((prev) => Math.max(1, prev + step));
+  };
+
+  const handleAddToCart = async () => {
+    if (!product) return;
+    clearError();
+    setIsAdded(false);
+    const cart = await addItem(productId, quantity);
+    if (cart) {
+      setIsAdded(true);
+    }
+  };
+
+  const handleBuyNow = async () => {
+    if (!product) return;
+    clearError();
+    const cart = await addItem(productId, quantity);
+    if (cart) {
+      navigate('/checkout');
+    }
+  };
 
   if (isLoading) {
     return (
@@ -116,20 +147,44 @@ export default function ProductDetail() {
             <div className="flex items-center justify-between sm:justify-start gap-4">
               <span className="text-sm font-bold uppercase tracking-widest opacity-60">Số lượng</span>
               <div className="flex items-center border border-outline-variant rounded-xl bg-surface-container-low p-1">
-                <button className="p-3 hover:bg-surface-container rounded-lg transition-colors text-primary"><Minus size={16} /></button>
-                <span className="px-6 font-bold text-lg min-w-[60px] text-center">1</span>
-                <button className="p-3 hover:bg-surface-container rounded-lg transition-colors text-primary"><Plus size={16} /></button>
+                <button
+                  type="button"
+                  onClick={() => changeQuantity(-1)}
+                  className="p-3 hover:bg-surface-container rounded-lg transition-colors text-primary"
+                >
+                  <Minus size={16} />
+                </button>
+                <span className="px-6 font-bold text-lg min-w-[60px] text-center">{quantity}</span>
+                <button
+                  type="button"
+                  onClick={() => changeQuantity(1)}
+                  className="p-3 hover:bg-surface-container rounded-lg transition-colors text-primary"
+                >
+                  <Plus size={16} />
+                </button>
               </div>
             </div>
             <div className="flex flex-col sm:flex-row gap-4">
-              <button className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2">
+              <button
+                type="button"
+                onClick={handleAddToCart}
+                disabled={isAdding}
+                className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
                 <ShoppingCart size={20} />
-                THÊM VÀO GIỎ
+                {isAdding ? 'ĐANG THÊM...' : 'THÊM VÀO GIỎ'}
               </button>
-              <button className="w-full sm:flex-1 border-2 border-primary text-primary py-4 rounded-2xl font-bold hover:bg-primary-container/20 transition-all active:scale-95">
+              <button
+                type="button"
+                onClick={handleBuyNow}
+                disabled={isAdding}
+                className="w-full sm:flex-1 border-2 border-primary text-primary py-4 rounded-2xl font-bold hover:bg-primary-container/20 transition-all active:scale-95 disabled:opacity-60 disabled:cursor-not-allowed"
+              >
                 MUA NGAY
               </button>
             </div>
+            {cartError && <p className="text-sm text-red-600">{cartError}</p>}
+            {isAdded && !cartError && <p className="text-sm text-green-600">Đã thêm vào giỏ hàng</p>}
           </div>
         </motion.div>
       </motion.div>

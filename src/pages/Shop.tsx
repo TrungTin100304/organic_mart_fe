@@ -1,9 +1,10 @@
 import { useEffect, useState } from "react";
-import { LayoutGrid, List, ChevronRight } from "lucide-react";
-import { motion } from "motion/react";
+import { LayoutGrid, List, ChevronRight, ChevronDown } from "lucide-react";
+import { motion, AnimatePresence } from "motion/react";
 import ProductCard from "../components/ProductCard";
 import { getProducts } from "../services/productService";
-import type { Product } from "../types";
+import { getCategories } from "../services/categoryService";
+import type { Product, ProductCategory } from "../types";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -27,26 +28,47 @@ export default function Shop() {
   const [size] = useState(10);
   const [totalPages, setTotalPages] = useState(0);
   const [loading, setLoading] = useState(true);
+  const [loadingCategories, setLoadingCategories] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [categories, setCategories] = useState<ProductCategory[]>([]);
+  const [activeCategoryId, setActiveCategoryId] = useState<number | null>(null);
+  const [expandedCategoryId, setExpandedCategoryId] = useState<number | null>(null);
+
+  useEffect(() => {
+    let isMounted = true;
+    const loadCategoriesData = async () => {
+      setLoadingCategories(true);
+      try {
+        const categoriesRes = await getCategories();
+        if (isMounted) setCategories(categoriesRes);
+      } catch (err) {
+        // silently ignore or log category fetch error
+      } finally {
+        if (isMounted) setLoadingCategories(false);
+      }
+    };
+    loadCategoriesData();
+    return () => { isMounted = false; };
+  }, []);
 
   useEffect(() => {
     let isMounted = true;
 
-    const loadProducts = async () => {
+    const loadProductsData = async () => {
       setLoading(true);
       setError(null);
 
       try {
-        const response = await getProducts(page, size);
+        const productsRes = await getProducts(page, size, activeCategoryId);
 
         if (!isMounted) return;
 
-        setProducts(response.items);
-        setTotalPages(response.totalPages);
+        setProducts(productsRes.items);
+        setTotalPages(productsRes.totalPages);
       } catch (err) {
         if (!isMounted) return;
 
-        setError(err instanceof Error ? err.message : "Không thể tải danh sách sản phẩm");
+        setError(err instanceof Error ? err.message : "Không thể tải danh sách");
         setProducts([]);
         setTotalPages(0);
       } finally {
@@ -56,12 +78,17 @@ export default function Shop() {
       }
     };
 
-    loadProducts();
+    loadProductsData();
 
     return () => {
       isMounted = false;
     };
-  }, [page, size]);
+  }, [page, size, activeCategoryId]);
+
+  // Reset page when category changes
+  useEffect(() => {
+    setPage(0);
+  }, [activeCategoryId]);
 
   const visiblePages =
     totalPages > 0
@@ -93,15 +120,67 @@ export default function Shop() {
         >
           <div className="bg-surface-container-low rounded-2xl border border-outline-variant p-4 md:p-6">
             <h3 className="text-primary font-bold mb-4">Danh mục</h3>
-            <div className="flex flex-row md:flex-col space-x-2 md:space-x-0 md:space-y-1 overflow-x-auto custom-scrollbar pb-2 md:pb-0">
-              {["Rau củ", "Trái cây", "Thịt & Hải sản", "Sữa", "Đồ khô"].map((cat) => (
-                <button 
-                  key={cat}
-                  className={`flex-shrink-0 text-left px-4 py-2 md:p-3 rounded-xl transition-all text-sm font-medium flex items-center md:gap-3 ${cat === "Vegetables" ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container whitespace-nowrap md:whitespace-normal"}`}
-                >
-                  {cat}
-                </button>
-              ))}
+            <div className="flex flex-col space-y-1">
+              <button
+                onClick={() => setActiveCategoryId(null)}
+                className={`flex-shrink-0 text-left px-4 py-2 md:p-3 rounded-xl transition-all text-sm font-medium flex items-center md:gap-3 whitespace-nowrap md:whitespace-normal ${activeCategoryId === null ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container"}`}
+              >
+                Tất cả
+              </button>
+              {loadingCategories ? (
+                <div className="px-4 py-2 text-sm text-on-surface-variant">Đang tải...</div>
+              ) : (
+                categories.filter(c => c.parentId === null).map((parent) => {
+                  const children = categories.filter(c => c.parentId === parent.id);
+                  const isExpanded = expandedCategoryId === parent.id;
+
+                  return (
+                    <div key={parent.id} className="flex flex-col">
+                      <button
+                        onClick={() => {
+                          if (expandedCategoryId === parent.id) {
+                            setExpandedCategoryId(null);
+                          } else {
+                            setExpandedCategoryId(parent.id);
+                          }
+                        }}
+                        className={`flex-shrink-0 text-left px-4 py-2 md:p-3 rounded-xl transition-all text-sm font-medium flex items-center justify-between md:gap-3 whitespace-nowrap md:whitespace-normal ${activeCategoryId === parent.id ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container"}`}
+                      >
+                        <span>{parent.name}</span>
+                        {children.length > 0 && (
+                          <span className="p-1">
+                            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                          </span>
+                        )}
+                      </button>
+
+                      <AnimatePresence>
+                        {isExpanded && children.length > 0 && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="flex flex-col ml-3 mt-1 border-l-2 border-outline-variant/50 pl-2 space-y-1 mb-1">
+                              {children.map(child => (
+                                <button
+                                  key={child.id}
+                                  onClick={() => setActiveCategoryId(child.id)}
+                                  className={`text-left px-3 py-2 rounded-lg transition-all text-sm whitespace-nowrap md:whitespace-normal ${activeCategoryId === child.id ? "text-primary font-bold bg-primary-container/30" : "text-on-surface-variant hover:bg-surface-container"}`}
+                                >
+                                  {child.name}
+                                </button>
+                              ))}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 
@@ -163,7 +242,7 @@ export default function Shop() {
             variants={staggerContainer}
             initial="initial"
             animate="animate"
-            className="grid grid-cols-2 lg:grid-cols-3 gap-6"
+            className="grid grid-cols-2 lg:grid-cols-3 gap-6 min-h-[400px]"
           >
             {loading ? (
               <div className="col-span-full rounded-2xl border border-outline-variant bg-white p-8 text-center text-on-surface-variant">

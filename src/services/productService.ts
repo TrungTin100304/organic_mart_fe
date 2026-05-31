@@ -14,8 +14,11 @@ const normalizeProduct = (product: RawProduct): Product => {
   };
 };
 
-export const getProducts = async (page = 0, size = 10): Promise<ProductsPage> => {
-  const response = await fetch(`${API_URL}/products?page=${page}&size=${size}`, {
+export const getProducts = async (page = 0, size = 10, categoryId?: number | null): Promise<ProductsPage> => {
+  const url = categoryId 
+    ? `${API_URL}/products?page=${page}&size=${size}&categoryId=${categoryId}`
+    : `${API_URL}/products?page=${page}&size=${size}`;
+  const response = await fetch(url, {
     method: 'GET',
     headers: {
       Accept: '*/*',
