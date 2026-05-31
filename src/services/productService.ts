@@ -11,6 +11,7 @@ const normalizeProduct = (product: RawProduct): Product => {
     category: product.category.name,
     description: product.description,
     organic: true,
+    allergens: product.allergens ?? [],
   };
 };
 

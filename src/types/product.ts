@@ -6,6 +6,7 @@ export interface Product {
   category: string;
   description: string;
   organic: boolean;
+  allergens?: string[];
   isNew?: boolean;
   sale?: boolean;
   rating?: number;

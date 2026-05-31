@@ -131,6 +131,22 @@ export default function ProductDetail() {
             <p className="text-base md:text-lg text-on-surface-variant leading-relaxed font-medium">
               {product.description}
             </p>
+            {product.allergens && product.allergens.length > 0 ? (
+              <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
+                <h4 className="font-bold text-base text-amber-800 mb-3">Các chất gây dị ứng</h4>
+                <div className="flex flex-wrap gap-2">
+                  {product.allergens.map((allergen) => (
+                    <span key={allergen} className="inline-flex items-center px-3 py-1 rounded-full border border-amber-300 bg-amber-100 text-amber-900 text-sm">
+                      {allergen}
+                    </span>
+                  ))}
+                </div>
+              </div>
+            ) : (
+              <div className="rounded-2xl border border-surface-variant bg-surface-container p-4 text-sm text-on-surface-variant">
+                Sản phẩm không chứa thành phần gây dị ứng phổ biến.
+              </div>
+            )}
             <div className="p-5 bg-surface-container rounded-2xl border border-outline-variant flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="text-primary size-5" />
