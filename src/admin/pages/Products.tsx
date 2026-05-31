@@ -7,6 +7,8 @@ import type { Product } from "../../types";
 import { createProduct, deleteProduct, getProducts, updateProduct, type ProductFormValues } from "../../services/productService";
 import { getProductCategories, type ProductCategory } from "../../services/categoryService";
 import { getInventoryBatches, type InventoryBatch } from "../../services/inventoryBatchService";
+import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
+import { getMockAdminProducts, getMockInventoryBatches, getMockProductCategories } from "../utils/mockAdapters";
 
 const statusMap: Record<AdminProduct["status"], { label: string; cls: string }> = {
   active: { label: "Dang ban", cls: "bg-emerald-50 text-emerald-700" },
@@ -49,18 +51,36 @@ export default function Products() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
+  const [dataSource, setDataSource] = useState<AdminDataSource>("api");
+  const [dataNotice, setDataNotice] = useState("");
 
   const loadData = async () => {
     setIsLoading(true);
     setError("");
+    setDataNotice("");
     try {
-      const [productPage, categoryList, batches] = await Promise.all([
-        getProducts({ page: 0, size: 200 }),
-        getProductCategories(),
-        getInventoryBatches().catch(() => [] as InventoryBatch[]),
-      ]);
-      setProducts(productPage.content.map((product) => toAdminProduct(product, batches)));
-      setCategories(categoryList);
+      const productResult = await loadAdminDataWithFallback(async () => {
+        const productPage = await getProducts({ page: 0, size: 200 });
+        const batchesResult = await loadAdminDataWithFallback(
+          getInventoryBatches,
+          getMockInventoryBatches,
+        );
+        return productPage.content.map((product) => toAdminProduct(product, batchesResult.data));
+      }, getMockAdminProducts);
+
+      const categoryResult = await loadAdminDataWithFallback(
+        getProductCategories,
+        getMockProductCategories,
+      );
+
+      const nextSource = productResult.source === "mock" || categoryResult.source === "mock" ? "mock" : "api";
+      setProducts(productResult.data);
+      setCategories(categoryResult.data);
+      setDataSource(nextSource);
+      setDataNotice(
+        [productResult.error, categoryResult.error].filter(Boolean).join(" ") ||
+          (nextSource === "mock" ? "Dang hien thi du lieu mau." : ""),
+      );
     } catch (err: any) {
       setError(err?.message || "Khong the tai danh sach san pham.");
     } finally {
@@ -85,6 +105,35 @@ export default function Products() {
   }), [products, search, catFilter]);
 
   const handleSubmit = async (values: ProductFormValues) => {
+    if (dataSource === "mock") {
+      const category = categories.find((item) => String(item.id) === String(values.categoryId));
+      const nextProduct: AdminProduct = {
+        id: editProduct?.id || `mock-${Date.now()}`,
+        name: values.name.trim(),
+        sku: editProduct?.sku || `MOCK-${Date.now()}`,
+        category: category?.name || editProduct?.category || "Chua phan loai",
+        categoryId: String(values.categoryId),
+        price: Number(values.price || 0),
+        stock: editProduct?.stock || 0,
+        status: values.isActive ? (editProduct?.stock ? "active" : "out_of_stock") : "draft",
+        organic: editProduct?.organic ?? true,
+        image: editProduct?.image || "",
+        updatedAt: new Date().toISOString(),
+        unit: values.unit?.trim() || "kg",
+        description: values.description,
+        storageInstructions: values.storageInstructions,
+        detailedDescription: values.detailedDescription,
+      };
+
+      setProducts((current) =>
+        editProduct
+          ? current.map((product) => (product.id === editProduct.id ? { ...product, ...nextProduct } : product))
+          : [nextProduct, ...current],
+      );
+      setShowForm(false);
+      return;
+    }
+
     setIsSubmitting(true);
     try {
       if (editProduct) {
@@ -103,6 +152,11 @@ export default function Products() {
 
   const handleDelete = async (product: AdminProduct) => {
     if (!window.confirm(`Xoa san pham "${product.name}"?`)) return;
+    if (dataSource === "mock") {
+      setProducts((current) => current.filter((item) => item.id !== product.id));
+      return;
+    }
+
     try {
       await deleteProduct(product.id);
       await loadData();
@@ -116,7 +170,7 @@ export default function Products() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl lg:text-2xl font-bold text-on-surface">San pham</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">{products.length} san pham tu backend</p>
+          <p className="text-sm text-on-surface-variant mt-0.5">{products.length} san pham {sourceLabel(dataSource)}</p>
         </div>
         <button onClick={() => { setEditProduct(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all self-start">
           <Plus className="w-4 h-4" /> Them san pham
@@ -129,7 +183,7 @@ export default function Products() {
           <input value={search} onChange={(event) => setSearch(event.target.value)} className="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder:text-on-surface-variant/40" placeholder="Tim theo ten, SKU..." />
         </div>
         <div className="flex gap-2 flex-wrap">
-          {[{ value: "all", label: "Tat ca" }, ...categories.map((category) => ({ value: String(category.id), label: category.name }))].map((filter) => (
+          {[{ value: "all", label: "Tat ca" }, ...categories.map((category) => ({ value: category.name, label: category.name }))].map((filter) => (
             <button
               key={filter.value}
               onClick={() => setCatFilter(filter.value)}
@@ -142,6 +196,7 @@ export default function Products() {
       </div>
 
       {isLoading && <p className="text-on-surface-variant">Dang tai san pham...</p>}
+      {dataNotice && !isLoading && <p className="text-amber-700 text-sm font-semibold">{dataNotice}</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
       {!isLoading && !error && (

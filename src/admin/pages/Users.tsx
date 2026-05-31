@@ -5,6 +5,8 @@ import UserDetailDrawer from "../components/UserDetailDrawer";
 import type { AdminUser } from "../types";
 import type { User } from "../../types/user";
 import { deleteUser, getUsers } from "../../services/adminUserService";
+import { ADMIN_USERS } from "../mocks/users";
+import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
 
 const roleMap: Record<AdminUser["role"], { label: string; cls: string }> = {
   admin: { label: "Admin", cls: "bg-primary/10 text-primary border-primary/20" },
@@ -37,12 +39,21 @@ export default function Users() {
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [dataSource, setDataSource] = useState<AdminDataSource>("api");
+  const [dataNotice, setDataNotice] = useState("");
 
   const loadUsers = async () => {
     setIsLoading(true);
     setError("");
+    setDataNotice("");
     try {
-      setUsers((await getUsers()).map(toAdminUser));
+      const result = await loadAdminDataWithFallback(
+        async () => (await getUsers()).map(toAdminUser),
+        () => ADMIN_USERS,
+      );
+      setUsers(result.data);
+      setDataSource(result.source);
+      setDataNotice(result.error || (result.source === "mock" ? "Dang hien thi du lieu mau." : ""));
     } catch (err: any) {
       setError(err?.message || "Khong the tai nguoi dung.");
     } finally {
@@ -68,6 +79,12 @@ export default function Users() {
 
   const handleDelete = async (user: AdminUser) => {
     if (!window.confirm(`Xoa nguoi dung "${user.name}"?`)) return;
+    if (dataSource === "mock") {
+      setUsers((current) => current.filter((item) => item.id !== user.id));
+      setSelectedUser(null);
+      return;
+    }
+
     try {
       await deleteUser(user.id);
       await loadUsers();
@@ -82,7 +99,7 @@ export default function Users() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Nguoi dung</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">{users.length} nguoi dung tu backend</p>
+          <p className="text-sm text-on-surface-variant mt-0.5">{users.length} nguoi dung {sourceLabel(dataSource)}</p>
         </div>
       </motion.div>
 
@@ -109,6 +126,7 @@ export default function Users() {
       </div>
 
       {isLoading && <p className="text-on-surface-variant">Dang tai nguoi dung...</p>}
+      {dataNotice && !isLoading && <p className="text-amber-700 text-sm font-semibold">{dataNotice}</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
       {!isLoading && !error && (

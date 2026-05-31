@@ -1,10 +1,11 @@
 import { useEffect, useMemo, useState } from "react";
-import { LayoutGrid, List, ChevronRight } from "lucide-react";
+import { ChevronDown, ChevronRight, LayoutGrid, List } from "lucide-react";
 import type { Product } from "../types";
 import ProductCard from "../components/ProductCard";
-import { motion } from "motion/react";
+import { AnimatePresence, motion } from "motion/react";
 import { getProducts } from "../services/productService";
 import { getProductCategories, type ProductCategory } from "../services/categoryService";
+import { filterProductsByCategory, getChildCategories, getRootCategories } from "../utils/shopCategories";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -24,7 +25,8 @@ const staggerContainer = {
 export default function Shop() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
-  const [selectedCategory, setSelectedCategory] = useState("all");
+  const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
+  const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
   const [sort, setSort] = useState("default");
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
@@ -50,10 +52,7 @@ export default function Shop() {
   }, []);
 
   const filteredProducts = useMemo(() => {
-    const byCategory =
-      selectedCategory === "all"
-        ? products
-        : products.filter((product) => product.categoryId === selectedCategory || product.category === selectedCategory);
+    const byCategory = filterProductsByCategory(products, categories, activeCategoryId);
 
     return [...byCategory].sort((a, b) => {
       if (sort === "price-asc") return a.price - b.price;
@@ -61,7 +60,9 @@ export default function Shop() {
       if (sort === "newest") return new Date(b.createdAt || 0).getTime() - new Date(a.createdAt || 0).getTime();
       return 0;
     });
-  }, [products, selectedCategory, sort]);
+  }, [products, categories, activeCategoryId, sort]);
+
+  const loadingCategories = isLoading && categories.length === 0;
 
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-10 py-6 md:py-10">
@@ -79,21 +80,85 @@ export default function Shop() {
           className="w-full md:col-span-3 space-y-6 md:space-y-10"
         >
           <div className="bg-surface-container-low rounded-2xl border border-outline-variant p-4 md:p-6">
-            <h3 className="text-primary font-bold mb-4">Danh muc</h3>
-            <div className="flex flex-row md:flex-col space-x-2 md:space-x-0 md:space-y-1 overflow-x-auto custom-scrollbar pb-2 md:pb-0">
-              {[{ id: "all", name: "Tat ca" }, ...categories.map((category) => ({ id: String(category.id), name: category.name }))].map((cat) => (
-                <button
-                  key={cat.id}
-                  onClick={() => setSelectedCategory(cat.id)}
-                  className={`flex-shrink-0 text-left px-4 py-2 md:p-3 rounded-xl transition-all text-sm font-medium flex items-center md:gap-3 ${
-                    selectedCategory === cat.id
-                      ? "bg-primary text-on-primary"
-                      : "text-on-surface-variant hover:bg-surface-container whitespace-nowrap md:whitespace-normal"
-                  }`}
-                >
-                  {cat.name}
-                </button>
-              ))}
+            <h3 className="text-primary font-bold mb-4">Danh mục</h3>
+            <div className="flex flex-col space-y-1">
+              <button
+                onClick={() => {
+                  setActiveCategoryId(null);
+                  setExpandedCategoryId(null);
+                }}
+                className={`flex-shrink-0 text-left px-4 py-2 md:p-3 rounded-xl transition-all text-sm font-medium flex items-center md:gap-3 whitespace-nowrap md:whitespace-normal ${
+                  activeCategoryId === null ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container"
+                }`}
+              >
+                Tất cả
+              </button>
+
+              {loadingCategories ? (
+                <div className="px-4 py-2 text-sm text-on-surface-variant">Đang tải...</div>
+              ) : (
+                getRootCategories(categories).map((parent) => {
+                  const parentId = String(parent.id);
+                  const children = getChildCategories(categories, parent.id);
+                  const isExpanded = expandedCategoryId === parentId;
+
+                  return (
+                    <div key={parent.id} className="flex flex-col">
+                      <button
+                        onClick={() => {
+                          setActiveCategoryId(parentId);
+                          if (children.length > 0) {
+                            setExpandedCategoryId(isExpanded ? null : parentId);
+                          }
+                        }}
+                        aria-expanded={children.length > 0 ? isExpanded : undefined}
+                        className={`flex-shrink-0 text-left px-4 py-2 md:p-3 rounded-xl transition-all text-sm font-medium flex items-center justify-between md:gap-3 whitespace-nowrap md:whitespace-normal ${
+                          activeCategoryId === parentId ? "bg-primary text-on-primary" : "text-on-surface-variant hover:bg-surface-container"
+                        }`}
+                      >
+                        <span className="min-w-0 truncate md:whitespace-normal">{parent.name}</span>
+                        {children.length > 0 && (
+                          <span className="p-1 flex-shrink-0">
+                            {isExpanded ? <ChevronDown size={16} /> : <ChevronRight size={16} />}
+                          </span>
+                        )}
+                      </button>
+
+                      <AnimatePresence initial={false}>
+                        {isExpanded && children.length > 0 && (
+                          <motion.div
+                            initial={{ height: 0, opacity: 0 }}
+                            animate={{ height: "auto", opacity: 1 }}
+                            exit={{ height: 0, opacity: 0 }}
+                            transition={{ duration: 0.2 }}
+                            className="overflow-hidden"
+                          >
+                            <div className="flex flex-col ml-3 mt-1 border-l-2 border-outline-variant/50 pl-2 space-y-1 mb-1">
+                              {children.map((child) => {
+                                const childId = String(child.id);
+
+                                return (
+                                  <button
+                                    key={child.id}
+                                    onClick={() => setActiveCategoryId(childId)}
+                                    className={`text-left px-3 py-2 rounded-lg transition-all text-sm whitespace-nowrap md:whitespace-normal ${
+                                      activeCategoryId === childId
+                                        ? "text-primary font-bold bg-primary-container/30"
+                                        : "text-on-surface-variant hover:bg-surface-container"
+                                    }`}
+                                  >
+                                    {child.name}
+                                  </button>
+                                );
+                              })}
+                            </div>
+                          </motion.div>
+                        )}
+                      </AnimatePresence>
+                    </div>
+                  );
+                })
+              )}
             </div>
           </div>
 

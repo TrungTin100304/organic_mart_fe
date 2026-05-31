@@ -22,6 +22,25 @@ export default function Navbar() {
       .catch(() => setCartCount(0));
   }, [location]);
 
+  useEffect(() => {
+    const handleCartUpdate = (event: Event) => {
+      const customEvent = event as CustomEvent;
+      const updatedCart = customEvent.detail;
+      if (updatedCart && typeof updatedCart.distinctItemCount === "number") {
+        setCartCount(updatedCart.distinctItemCount);
+      } else {
+        getCurrentCart()
+          .then((cart) => setCartCount(cart.distinctItemCount || 0))
+          .catch(() => setCartCount(0));
+      }
+    };
+
+    window.addEventListener("cart-updated", handleCartUpdate);
+    return () => {
+      window.removeEventListener("cart-updated", handleCartUpdate);
+    };
+  }, []);
+
   if (isAdmin || isAuthPage) return null;
 
   return (

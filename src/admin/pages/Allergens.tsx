@@ -3,17 +3,25 @@ import { motion } from "motion/react";
 import { AlertTriangle, Plus } from "lucide-react";
 import type { Allergen } from "../../types/user";
 import { createAllergen, getAllAllergens } from "../../services/allergenService";
+import { ADMIN_ALLERGENS } from "../mocks/allergens";
+import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
 
 export default function Allergens() {
   const [allergens, setAllergens] = useState<Allergen[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [dataSource, setDataSource] = useState<AdminDataSource>("api");
+  const [dataNotice, setDataNotice] = useState("");
 
   const loadAllergens = async () => {
     setIsLoading(true);
     setError("");
+    setDataNotice("");
     try {
-      setAllergens(await getAllAllergens());
+      const result = await loadAdminDataWithFallback(getAllAllergens, () => ADMIN_ALLERGENS);
+      setAllergens(result.data);
+      setDataSource(result.source);
+      setDataNotice(result.error || (result.source === "mock" ? "Dang hien thi du lieu mau." : ""));
     } catch (err: any) {
       setError(err?.message || "Khong the tai chat gay di ung.");
     } finally {
@@ -28,6 +36,11 @@ export default function Allergens() {
   const handleCreate = async () => {
     const name = window.prompt("Ten chat gay di ung");
     if (!name?.trim()) return;
+    if (dataSource === "mock") {
+      setAllergens((current) => [{ id: Date.now(), name: name.trim() }, ...current]);
+      return;
+    }
+
     try {
       await createAllergen(name.trim());
       await loadAllergens();
@@ -41,7 +54,7 @@ export default function Allergens() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
           <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Chat gay di ung</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">{allergens.length} muc tu backend</p>
+          <p className="text-sm text-on-surface-variant mt-0.5">{allergens.length} muc {sourceLabel(dataSource)}</p>
         </div>
         <button onClick={handleCreate} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all">
           <Plus className="w-4 h-4" /> Them moi
@@ -49,6 +62,7 @@ export default function Allergens() {
       </motion.div>
 
       {isLoading && <p className="text-on-surface-variant">Dang tai chat gay di ung...</p>}
+      {dataNotice && !isLoading && <p className="text-amber-700 text-sm font-semibold">{dataNotice}</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
       {!isLoading && !error && (

@@ -1,10 +1,11 @@
 import { Link } from "react-router-dom";
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState, useCallback } from "react";
 import type { Product } from "@/types";
 import ProductCard from "../components/ProductCard";
 import HeroBanner from "../components/HeroBanner";
 import { motion } from "motion/react";
 import { getProducts } from "@/services/productService";
+import { getHomeProductSections } from "@/utils/homeProductSections";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -23,17 +24,38 @@ const staggerContainer = {
   viewport: { once: true }
 };
 
+function ProductSkeleton() {
+  return (
+    <div className="bg-surface-container-lowest border border-outline-variant rounded-xl overflow-hidden flex flex-col h-full animate-pulse">
+      <div className="aspect-[4/3] bg-surface-container-high" />
+      <div className="p-stack-md space-y-3 flex-grow">
+        <div className="h-4 bg-surface-container-high rounded-full w-3/4 mx-auto" />
+        <div className="h-5 bg-surface-container-high rounded-full w-1/2 mx-auto" />
+        <div className="flex gap-2 mt-auto pt-2">
+          <div className="h-9 bg-surface-container-high rounded-lg flex-1" />
+          <div className="h-9 bg-surface-container-high rounded-lg flex-1" />
+        </div>
+      </div>
+    </div>
+  );
+}
+
 export default function Home() {
   const [products, setProducts] = useState<Product[]>([]);
   const [isLoadingProducts, setIsLoadingProducts] = useState(true);
+  const [productError, setProductError] = useState<string | null>(null);
 
-  useEffect(() => {
+  const loadProducts = useCallback(() => {
+    setIsLoadingProducts(true);
+    setProductError(null);
     let mounted = true;
     getProducts({ page: 0, size: 12 })
       .then((page) => {
         if (mounted) setProducts(page.content);
       })
-      .catch((error) => console.error("Failed to load products", error))
+      .catch(() => {
+        if (mounted) setProductError("Không thể tải sản phẩm. Vui lòng thử lại.");
+      })
       .finally(() => {
         if (mounted) setIsLoadingProducts(false);
       });
@@ -42,17 +64,83 @@ export default function Home() {
     };
   }, []);
 
+  useEffect(() => {
+    const cleanup = loadProducts();
+    return cleanup;
+  }, [loadProducts]);
+
+  const { newArrivals, favoriteProducts } = useMemo(
+    () => getHomeProductSections(products, 6),
+    [products],
+  );
+
+  const renderProductGrid = (items: Product[], keySuffix = "") => {
+    if (isLoadingProducts) {
+      return (
+        <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-gutter">
+          {Array.from({ length: 6 }).map((_, i) => (
+            <ProductSkeleton key={`skeleton-${keySuffix}-${i}`} />
+          ))}
+        </div>
+      );
+    }
+
+    if (productError) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="w-16 h-16 bg-red-50 text-red-500 rounded-full flex items-center justify-center mb-4">
+            <span className="material-symbols-outlined text-[32px]">cloud_off</span>
+          </div>
+          <p className="text-on-surface-variant text-body-lg mb-4">{productError}</p>
+          <button
+            onClick={loadProducts}
+            className="px-6 py-2 bg-primary text-white font-bold rounded-full hover:brightness-110 transition-all active:scale-95 cursor-pointer"
+          >
+            Thử lại
+          </button>
+        </div>
+      );
+    }
+
+    if (items.length === 0) {
+      return (
+        <div className="flex flex-col items-center justify-center py-12 text-center">
+          <div className="w-16 h-16 bg-surface-container-high text-on-surface-variant rounded-full flex items-center justify-center mb-4">
+            <span className="material-symbols-outlined text-[32px]">inventory_2</span>
+          </div>
+          <p className="text-on-surface-variant text-body-lg">Chưa có sản phẩm nào.</p>
+        </div>
+      );
+    }
+
+    return (
+      <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-gutter">
+        {items.map((p, idx) => (
+          <motion.div
+            key={p.id + keySuffix}
+            variants={{
+              initial: { opacity: 0, y: 20 },
+              whileInView: { opacity: 1, y: 0, transition: { duration: 0.5, delay: idx * 0.05 } }
+            }}
+          >
+            <ProductCard product={p} />
+          </motion.div>
+        ))}
+      </div>
+    );
+  };
+
   return (
     <div className="flex flex-col bg-background min-h-screen">
-      {/* Hero Carousel Section (now a reusable component) */}
+      {/* Hero Carousel */}
       <HeroBanner />
 
-      <div className="max-w-[1280px] mx-auto px-margin-desktop py-stack-lg w-full">
-        {/* Sản phẩm mới về Section */}
-        <motion.section 
+      <div className="max-w-[1280px] mx-auto px-margin-mobile md:px-margin-desktop py-stack-lg w-full">
+        {/* Sản phẩm mới về */}
+        <motion.section
           variants={staggerContainer}
           initial="initial"
-          whileInView="whileInView"
+          animate="whileInView"
           viewport={{ once: true, margin: "-50px" }}
           className="mb-20"
         >
@@ -63,27 +151,11 @@ export default function Home() {
             </h2>
             <Link className="text-primary font-bold hover:underline" to="/shop">Xem tất cả</Link>
           </div>
-          {isLoadingProducts ? (
-            <p className="text-on-surface-variant">Dang tai san pham...</p>
-          ) : (
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-gutter">
-            {products.map((p, idx) => (
-              <motion.div
-                key={p.id}
-                variants={{
-                  initial: { opacity: 0, y: 20 },
-                  whileInView: { opacity: 1, y: 0, transition: { duration: 0.5, delay: idx * 0.05 } }
-                }}
-              >
-                <ProductCard product={p} />
-              </motion.div>
-            ))}
-          </div>
-          )}
+          {renderProductGrid(newArrivals, "_new")}
         </motion.section>
 
         {/* Khuyến mãi đặc biệt (Asymmetric Banner) */}
-        <motion.section 
+        <motion.section
           {...fadeIn}
           className="bg-primary text-on-primary md:rounded-2xl rounded-xl overflow-hidden relative mb-12 md:mb-20 shadow-xl"
         >
@@ -105,7 +177,7 @@ export default function Home() {
                 initial={{ scale: 1.2 }}
                 whileInView={{ scale: 1 }}
                 transition={{ duration: 1.5 }}
-                className="absolute inset-0 w-full h-full object-cover" 
+                className="absolute inset-0 w-full h-full object-cover"
                 src="https://lh3.googleusercontent.com/aida-public/AB6AXuCWt7BEqoTSm7Hgfzlnu21gyCTbdLbqxMErfRMYUV8CWzt9180cWVta3ygx2HJ0_bSqhkcx5eOJrX0IP837HqLJbZul1hs4g1ewHcNBaK_Mf-I0VtrEbpfp5qlo1xv_dpLLBTYDup08GipeP_rWB6nI_V0WFkAdyg4S67UYppHb6D8hjFGJqAUCJT2kkh6c6Xh9LgS5YmtNTQYEJFQOdsRRfkhZ9TLkvMzemp0W2cfTXmWVjqZRF6sSS9ohzV91RU2SfXzK7j4Ik1w"
                 alt="Tropical Fruits"
               />
@@ -114,11 +186,11 @@ export default function Home() {
           </div>
         </motion.section>
 
-        {/* Sản phẩm yêu thích Section */}
-        <motion.section 
+        {/* Sản phẩm được yêu thích */}
+        <motion.section
           variants={staggerContainer}
           initial="initial"
-          whileInView="whileInView"
+          animate="whileInView"
           viewport={{ once: true, margin: "-50px" }}
           className="mb-20"
         >
@@ -129,22 +201,10 @@ export default function Home() {
             </h2>
             <Link className="text-primary font-bold hover:underline" to="/shop">Xem tất cả</Link>
           </div>
-          <div className="grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-gutter">
-            {[...products].reverse().map((p, idx) => (
-              <motion.div
-                key={p.id + "_fav"}
-                variants={{
-                  initial: { opacity: 0, y: 20 },
-                  whileInView: { opacity: 1, y: 0, transition: { duration: 0.5, delay: idx * 0.05 } }
-                }}
-              >
-                <ProductCard product={p} />
-              </motion.div>
-            ))}
-          </div>
+          {renderProductGrid(favoriteProducts, "_fav")}
         </motion.section>
 
-        {/* --- Giới thiệu thêm / About & UX-UI Highlights --- */}
+        {/* Giới thiệu ngắn */}
         <section className="py-stack-lg">
           <motion.h2
             {...fadeIn}
@@ -177,7 +237,7 @@ export default function Home() {
               <div className="w-16 h-16 bg-primary-container/20 rounded-full flex items-center justify-center text-primary mb-stack-md group-hover:bg-primary group-hover:text-white transition-colors">
                 <span className="material-symbols-outlined text-[28px]">search</span>
               </div>
-              <h3 className="text-headline-md font-bold mb-2">Tìm kiếm & Khám phá nhanh</h3>
+              <h3 className="text-headline-md font-bold mb-2">Tìm kiếm &amp; Khám phá nhanh</h3>
               <p className="text-on-surface-variant text-body-md leading-relaxed">Bộ lọc thông minh, đề xuất cá nhân giúp bạn tìm sản phẩm phù hợp trong vài giây.</p>
             </motion.div>
 
@@ -193,28 +253,28 @@ export default function Home() {
               <div className="w-16 h-16 bg-primary-container/20 rounded-full flex items-center justify-center text-primary mb-stack-md group-hover:bg-primary group-hover:text-white transition-colors">
                 <span className="material-symbols-outlined text-[28px]">support_agent</span>
               </div>
-              <h3 className="text-headline-md font-bold mb-2">Hỗ trợ & Đáng tin cậy</h3>
+              <h3 className="text-headline-md font-bold mb-2">Hỗ trợ &amp; Đáng tin cậy</h3>
               <p className="text-on-surface-variant text-body-md leading-relaxed">Hỗ trợ trực tuyến 24/7, chính sách đổi trả rõ ràng và chứng nhận nguồn gốc minh bạch.</p>
             </motion.div>
           </motion.div>
         </section>
 
-        {/* Về chúng tôi (Bento Grid Style) */}
+        {/* Vì sao nên chọn Organic Mart? */}
         <section className="py-stack-lg">
-          <motion.h2 
+          <motion.h2
             {...fadeIn}
             className="text-headline-md font-bold text-primary mb-stack-lg text-center"
           >
             Vì sao nên chọn Organic Mart?
           </motion.h2>
-          <motion.div 
+          <motion.div
             variants={staggerContainer}
             initial="initial"
             whileInView="whileInView"
             viewport={{ once: true }}
             className="grid grid-cols-1 md:grid-cols-3 gap-gutter"
           >
-            <motion.div 
+            <motion.div
               variants={fadeIn}
               className="bg-surface-container-high p-stack-lg rounded-2xl flex flex-col items-center text-center group hover:shadow-md transition-all border border-transparent hover:border-primary/10"
             >
@@ -224,7 +284,7 @@ export default function Home() {
               <h3 className="text-headline-md font-bold mb-2">Chứng nhận hữu cơ</h3>
               <p className="text-on-surface-variant text-body-md leading-relaxed">Sản phẩm đạt chuẩn organic từ các tổ chức uy tín nhất Việt Nam và quốc tế.</p>
             </motion.div>
-            <motion.div 
+            <motion.div
               variants={fadeIn}
               className="bg-surface-container-high p-stack-lg rounded-2xl flex flex-col items-center text-center group hover:shadow-md transition-all border border-transparent hover:border-primary/10"
             >
@@ -234,7 +294,7 @@ export default function Home() {
               <h3 className="text-headline-md font-bold mb-2">Giao hàng 2H</h3>
               <p className="text-on-surface-variant text-body-md leading-relaxed">Đảm bảo độ tươi ngon bằng quy trình vận chuyển thần tốc và chuyên nghiệp.</p>
             </motion.div>
-            <motion.div 
+            <motion.div
               variants={fadeIn}
               className="bg-surface-container-high p-stack-lg rounded-2xl flex flex-col items-center text-center group hover:shadow-md transition-all border border-transparent hover:border-primary/10"
             >

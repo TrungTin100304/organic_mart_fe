@@ -2,13 +2,15 @@ import { useEffect, useMemo, useState } from "react";
 import { AlertTriangle, Package } from "lucide-react";
 import { Link } from "react-router-dom";
 import { getInventoryBatches, type InventoryBatch } from "../../services/inventoryBatchService";
+import { loadAdminDataWithFallback } from "../utils/dataSource";
+import { getMockInventoryBatches } from "../utils/mockAdapters";
 
 export default function LowStockAlert() {
   const [batches, setBatches] = useState<InventoryBatch[]>([]);
 
   useEffect(() => {
-    getInventoryBatches()
-      .then(setBatches)
+    loadAdminDataWithFallback(getInventoryBatches, getMockInventoryBatches)
+      .then((result) => setBatches(result.data))
       .catch(() => setBatches([]));
   }, []);
 

@@ -2,17 +2,25 @@ import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Edit2, Leaf, Plus, Trash2 } from "lucide-react";
 import { createFarm, deleteFarm, getFarms, updateFarm, type Farm } from "../../services/farmService";
+import { ADMIN_FARMS } from "../mocks/farms";
+import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
 
 export default function Farms() {
   const [farms, setFarms] = useState<Farm[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [dataSource, setDataSource] = useState<AdminDataSource>("api");
+  const [dataNotice, setDataNotice] = useState("");
 
   const loadFarms = async () => {
     setIsLoading(true);
     setError("");
+    setDataNotice("");
     try {
-      setFarms(await getFarms());
+      const result = await loadAdminDataWithFallback(getFarms, () => ADMIN_FARMS);
+      setFarms(result.data);
+      setDataSource(result.source);
+      setDataNotice(result.error || (result.source === "mock" ? "Dang hien thi du lieu mau." : ""));
     } catch (err: any) {
       setError(err?.message || "Khong the tai nong trai.");
     } finally {
@@ -28,6 +36,22 @@ export default function Farms() {
     const name = window.prompt("Ten nong trai");
     if (!name?.trim()) return;
     const location = window.prompt("Dia diem") || "";
+    if (dataSource === "mock") {
+      setFarms((current) => [
+        {
+          id: Date.now(),
+          name: name.trim(),
+          location,
+          certification: "",
+          contactPhone: "",
+          contactEmail: "",
+          createdAt: new Date().toISOString(),
+        },
+        ...current,
+      ]);
+      return;
+    }
+
     try {
       await createFarm({ name: name.trim(), location, certification: "", contactPhone: "", contactEmail: "" });
       await loadFarms();
@@ -40,6 +64,17 @@ export default function Farms() {
     const name = window.prompt("Ten nong trai", farm.name);
     if (!name?.trim()) return;
     const location = window.prompt("Dia diem", farm.location || "") || "";
+    const nextFarm = {
+      ...farm,
+      name: name.trim(),
+      location,
+    };
+
+    if (dataSource === "mock") {
+      setFarms((current) => current.map((item) => (item.id === farm.id ? nextFarm : item)));
+      return;
+    }
+
     try {
       await updateFarm(farm.id, {
         name: name.trim(),
@@ -56,6 +91,11 @@ export default function Farms() {
 
   const handleDelete = async (farm: Farm) => {
     if (!window.confirm(`Xoa nong trai "${farm.name}"?`)) return;
+    if (dataSource === "mock") {
+      setFarms((current) => current.filter((item) => item.id !== farm.id));
+      return;
+    }
+
     try {
       await deleteFarm(farm.id);
       await loadFarms();
@@ -69,7 +109,7 @@ export default function Farms() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
           <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Nong trai</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">{farms.length} nong trai tu backend</p>
+          <p className="text-sm text-on-surface-variant mt-0.5">{farms.length} nong trai {sourceLabel(dataSource)}</p>
         </div>
         <button onClick={handleCreate} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all">
           <Plus className="w-4 h-4" /> Them nong trai
@@ -77,6 +117,7 @@ export default function Farms() {
       </motion.div>
 
       {isLoading && <p className="text-on-surface-variant">Dang tai nong trai...</p>}
+      {dataNotice && !isLoading && <p className="text-amber-700 text-sm font-semibold">{dataNotice}</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
       {!isLoading && !error && (

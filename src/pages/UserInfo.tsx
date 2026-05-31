@@ -12,6 +12,15 @@ interface Toast {
   type: 'success' | 'error';
 }
 
+const TABS = [
+  { key: 'profile' as const, label: 'Thông tin cá nhân', icon: 'person' },
+  { key: 'orders' as const, label: 'Lịch sử mua hàng', icon: 'history' },
+  { key: 'addresses' as const, label: 'Sổ địa chỉ', icon: 'location_on' },
+  { key: 'settings' as const, label: 'Cài đặt', icon: 'settings' },
+] as const;
+
+type TabKey = (typeof TABS)[number]['key'];
+
 const UserInfoPage: React.FC = () => {
   const navigate = useNavigate();
   const { user, isLoading, error, refetch } = useUser();
@@ -19,7 +28,7 @@ const UserInfoPage: React.FC = () => {
   const [isAddressesLoading, setIsAddressesLoading] = useState(true);
 
   // Active sidebar tab
-  const [activeTab, setActiveTab] = useState<'profile' | 'addresses' | 'orders' | 'settings'>('profile');
+  const [activeTab, setActiveTab] = useState<TabKey>('profile');
 
   // Allergen state
   const [allergens, setAllergens] = useState<Allergen[]>([]);
@@ -70,7 +79,7 @@ const UserInfoPage: React.FC = () => {
       const list = await addressService.getAllAddresses();
       setAddresses(list);
     } catch (err: any) {
-      showToast(err.message || 'Failed to fetch addresses', 'error');
+      showToast(err.message || 'Không thể tải danh sách địa chỉ', 'error');
     } finally {
       setIsAddressesLoading(false);
     }
@@ -100,7 +109,7 @@ const UserInfoPage: React.FC = () => {
     }
     setSelectedAllergens(updated);
     localStorage.setItem(`user_allergens_${user.id}`, JSON.stringify(updated));
-    showToast('Dietary preferences updated successfully!', 'success');
+    showToast('Đã cập nhật tuỳ chọn chế độ ăn!', 'success');
   };
 
   // Profile Edit
@@ -117,7 +126,7 @@ const UserInfoPage: React.FC = () => {
   const handleProfileSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!profileForm.fullName.trim()) {
-      showToast('Full Name is required', 'error');
+      showToast('Họ và tên không được để trống', 'error');
       return;
     }
     setIsProfileSubmitting(true);
@@ -128,11 +137,11 @@ const UserInfoPage: React.FC = () => {
 
       const { updateCurrentUser } = await import('@/services/userService');
       await updateCurrentUser(formData);
-      showToast('Profile updated successfully!', 'success');
+      showToast('Cập nhật thông tin thành công!', 'success');
       refetch();
       setIsProfileModalOpen(false);
     } catch (err: any) {
-      showToast(err.message || 'Failed to update profile', 'error');
+      showToast(err.message || 'Không thể cập nhật thông tin', 'error');
     } finally {
       setIsProfileSubmitting(false);
     }
@@ -173,19 +182,19 @@ const UserInfoPage: React.FC = () => {
   const handleAddressSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!addressForm.recipientName.trim()) {
-      showToast('Recipient name is required', 'error');
+      showToast('Tên người nhận không được để trống', 'error');
       return;
     }
     if (!addressForm.recipientPhone.trim()) {
-      showToast('Recipient phone is required', 'error');
+      showToast('Số điện thoại người nhận không được để trống', 'error');
       return;
     }
     if (!addressForm.fullAddress.trim()) {
-      showToast('Street address is required', 'error');
+      showToast('Địa chỉ chi tiết không được để trống', 'error');
       return;
     }
     if (!addressForm.city?.trim()) {
-      showToast('City is required', 'error');
+      showToast('Tỉnh/Thành phố không được để trống', 'error');
       return;
     }
 
@@ -196,28 +205,28 @@ const UserInfoPage: React.FC = () => {
           ...addressForm,
           id: editingAddress.id,
         });
-        showToast('Address updated successfully!', 'success');
+        showToast('Cập nhật địa chỉ thành công!', 'success');
       } else {
         await addressService.createAddress(addressForm);
-        showToast('Address created successfully!', 'success');
+        showToast('Thêm địa chỉ thành công!', 'success');
       }
       await loadAddresses();
       setIsAddressModalOpen(false);
     } catch (err: any) {
-      showToast(err.message || 'Failed to save address', 'error');
+      showToast(err.message || 'Không thể lưu địa chỉ', 'error');
     } finally {
       setIsAddressSubmitting(false);
     }
   };
 
   const handleDeleteAddress = async (id: number | string) => {
-    if (!window.confirm('Are you sure you want to delete this address?')) return;
+    if (!window.confirm('Bạn có chắc chắn muốn xoá địa chỉ này?')) return;
     try {
       await addressService.deleteAddress(id);
-      showToast('Address deleted successfully', 'success');
+      showToast('Đã xoá địa chỉ', 'success');
       await loadAddresses();
     } catch (err: any) {
-      showToast(err.message || 'Failed to delete address', 'error');
+      showToast(err.message || 'Không thể xoá địa chỉ', 'error');
     }
   };
 
@@ -235,13 +244,22 @@ const UserInfoPage: React.FC = () => {
     localStorage.removeItem("refreshToken");
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userRole");
-    showToast("Logged out successfully!", "success");
+    showToast("Đăng xuất thành công!", "success");
     setTimeout(() => {
       navigate("/login");
     }, 1000);
   };
 
-  if (isLoading) return <div className="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop font-sans text-center text-on-surface-variant font-medium">Loading user...</div>;
+  if (isLoading) {
+    return (
+      <div className="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop font-sans">
+        <div className="flex flex-col items-center justify-center py-20 text-center">
+          <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
+          <p className="text-on-surface-variant font-medium">Đang tải thông tin...</p>
+        </div>
+      </div>
+    );
+  }
 
   if (error) {
     return (
@@ -262,60 +280,42 @@ const UserInfoPage: React.FC = () => {
       </div>
     );
   }
-  if (!user) return <div className="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop font-sans">No user found.</div>;
+  if (!user) return <div className="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop font-sans">Không tìm thấy người dùng.</div>;
 
   const recentOrders = user.recentOrders || [];
 
   return (
     <main className="pt-24 pb-12 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto font-sans">
       <div className="grid grid-cols-1 md:grid-cols-12 gap-8">
-        <aside className="md:col-span-3 space-y-2">
-          <h2 className="font-headline-md text-headline-md mb-6 px-4">My Account</h2>
+        {/* Sidebar — hidden on mobile, replaced by horizontal tabs */}
+        <aside className="hidden md:block md:col-span-3 space-y-2">
+          {/* Mini user card on sidebar */}
+          <div className="flex items-center gap-3 px-4 py-4 mb-4 bg-surface-container-low rounded-xl border border-outline-variant/30">
+            <img
+              src={user.avatarUrl ?? '/assets/hero.png'}
+              alt={user.fullName}
+              className="w-10 h-10 rounded-full object-cover border-2 border-surface-container"
+            />
+            <div className="min-w-0">
+              <p className="font-bold text-body-md truncate">{user.fullName}</p>
+              <p className="text-xs text-on-surface-variant truncate">{user.email}</p>
+            </div>
+          </div>
           <nav className="space-y-1">
-            <button
-              onClick={() => setActiveTab('profile')}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-label-lg text-label-lg transition-all active:scale-95 text-left cursor-pointer ${
-                activeTab === 'profile'
-                  ? 'bg-primary text-white shadow-md font-bold'
-                  : 'text-on-surface-variant hover:bg-surface-container-high font-medium'
-              }`}
-            >
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === 'profile' ? `"FILL" 1` : `"FILL" 0` }}>person</span>
-              Thông tin cá nhân
-            </button>
-            <button
-              onClick={() => setActiveTab('orders')}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-label-lg text-label-lg transition-all active:scale-95 text-left cursor-pointer ${
-                activeTab === 'orders'
-                  ? 'bg-primary text-white shadow-md font-bold'
-                  : 'text-on-surface-variant hover:bg-surface-container-high font-medium'
-              }`}
-            >
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === 'orders' ? `"FILL" 1` : `"FILL" 0` }}>history</span>
-              Lịch sử mua hàng
-            </button>
-            <button
-              onClick={() => setActiveTab('addresses')}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-label-lg text-label-lg transition-all active:scale-95 text-left cursor-pointer ${
-                activeTab === 'addresses'
-                  ? 'bg-primary text-white shadow-md font-bold'
-                  : 'text-on-surface-variant hover:bg-surface-container-high font-medium'
-              }`}
-            >
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === 'addresses' ? `"FILL" 1` : `"FILL" 0` }}>location_on</span>
-              Sổ địa chỉ
-            </button>
-            <button
-              onClick={() => setActiveTab('settings')}
-              className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-label-lg text-label-lg transition-all active:scale-95 text-left cursor-pointer ${
-                activeTab === 'settings'
-                  ? 'bg-primary text-white shadow-md font-bold'
-                  : 'text-on-surface-variant hover:bg-surface-container-high font-medium'
-              }`}
-            >
-              <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === 'settings' ? `"FILL" 1` : `"FILL" 0` }}>settings</span>
-              Cài đặt tài khoản
-            </button>
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-label-lg text-label-lg transition-all active:scale-95 text-left cursor-pointer ${
+                  activeTab === tab.key
+                    ? 'bg-primary text-white shadow-md font-bold'
+                    : 'text-on-surface-variant hover:bg-surface-container-high font-medium'
+                }`}
+              >
+                <span className="material-symbols-outlined" style={{ fontVariationSettings: activeTab === tab.key ? `"FILL" 1` : `"FILL" 0` }}>{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
             <button
               onClick={handleLogout}
               className="w-full flex items-center gap-4 px-4 py-3 text-red-600 hover:bg-red-50 hover:text-red-700 rounded-xl font-label-lg text-label-lg transition-all cursor-pointer text-left"
@@ -326,9 +326,36 @@ const UserInfoPage: React.FC = () => {
           </nav>
         </aside>
 
-        <div className="md:col-span-9 space-y-12">
+        {/* Mobile horizontal tabs */}
+        <div className="md:hidden -mx-margin-mobile px-margin-mobile overflow-x-auto scrollbar-none">
+          <div className="flex gap-2 pb-4 min-w-max">
+            {TABS.map((tab) => (
+              <button
+                key={tab.key}
+                onClick={() => setActiveTab(tab.key)}
+                className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer ${
+                  activeTab === tab.key
+                    ? 'bg-primary text-white shadow-md'
+                    : 'bg-surface-container-low text-on-surface-variant border border-outline-variant/30 hover:bg-surface-container-high'
+                }`}
+              >
+                <span className="material-symbols-outlined text-[18px]" style={{ fontVariationSettings: activeTab === tab.key ? `"FILL" 1` : `"FILL" 0` }}>{tab.icon}</span>
+                {tab.label}
+              </button>
+            ))}
+            <button
+              onClick={handleLogout}
+              className="flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap text-red-600 bg-red-50 border border-red-100 hover:bg-red-100 transition-all cursor-pointer active:scale-95"
+            >
+              <span className="material-symbols-outlined text-[18px]">logout</span>
+              Đăng xuất
+            </button>
+          </div>
+        </div>
+
+        <div className="md:col-span-9 space-y-8">
           {activeTab === 'profile' && (
-            <div className="space-y-12 animate-in fade-in duration-300">
+            <div className="space-y-8">
               {/* Personal Info Card */}
               <ProfileCard
                 user={user}
@@ -369,14 +396,14 @@ const UserInfoPage: React.FC = () => {
                     })}
                   </div>
                 ) : (
-                  <p className="text-on-surface-variant text-body-md">Loading dietary preferences...</p>
+                  <p className="text-on-surface-variant text-body-md">Đang tải tuỳ chọn chế độ ăn...</p>
                 )}
               </section>
             </div>
           )}
 
           {activeTab === 'addresses' && (
-            <div className="space-y-12 animate-in fade-in duration-300">
+            <div className="space-y-8">
               {/* Address Book Section */}
               <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
                 <div className="flex justify-between items-center mb-6">
@@ -390,7 +417,7 @@ const UserInfoPage: React.FC = () => {
                 </div>
 
                 {isAddressesLoading ? (
-                  <p className="text-on-surface-variant text-body-md">Loading addresses...</p>
+                  <p className="text-on-surface-variant text-body-md">Đang tải địa chỉ...</p>
                 ) : (
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     {addresses.length > 0 ? (
@@ -431,7 +458,7 @@ const UserInfoPage: React.FC = () => {
                                   </button>
                                   <button
                                     onClick={() => addr.id && handleDeleteAddress(addr.id)}
-                                    className="text-on-surface-variant hover:text-error font-bold text-label-lg transition-colors cursor-pointer"
+                                    className="text-on-surface-variant hover:text-red-600 font-bold text-label-lg transition-colors cursor-pointer"
                                   >
                                     Xóa
                                   </button>
@@ -447,7 +474,7 @@ const UserInfoPage: React.FC = () => {
                         className="p-8 border border-outline-variant hover:border-primary transition-colors rounded-xl flex items-center justify-center border-dashed cursor-pointer min-h-[160px] w-full col-span-2"
                       >
                         <div className="text-center space-y-2">
-                          <span className="material-symbols-outlined text-outline text-[32px]" data-icon="add_location">
+                          <span className="material-symbols-outlined text-outline text-[32px]">
                             add_location
                           </span>
                           <p className="text-outline font-label-lg">Thêm địa chỉ nhận hàng</p>
@@ -461,7 +488,7 @@ const UserInfoPage: React.FC = () => {
           )}
 
           {activeTab === 'orders' && (
-            <div className="space-y-12 animate-in fade-in duration-300">
+            <div className="space-y-8">
               {/* Recent Orders Section */}
               <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
                 <div className="flex justify-between items-center mb-6">
@@ -486,19 +513,24 @@ const UserInfoPage: React.FC = () => {
                         recentOrders.map((o) => (
                           <tr key={o.id} className="hover:bg-surface-container-low transition-colors group cursor-pointer">
                             <td className="py-4 font-body-md text-body-md font-bold text-primary">{o.id}</td>
-                            <td className="py-4 font-body-md text-body-md">{new Date(o.date).toLocaleDateString()}</td>
+                            <td className="py-4 font-body-md text-body-md">{new Date(o.date).toLocaleDateString('vi-VN')}</td>
                             <td className="py-4">
                               <span className={`inline-flex items-center gap-1 px-2 py-1 rounded ${o.status === 'Out for Delivery' ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container-high text-on-surface-variant'} text-[12px] font-bold`}>
                                 {o.status === 'Out for Delivery' && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
                                 {o.status}
                               </span>
                             </td>
-                            <td className="py-4 font-price-display text-price-display text-right">${o.total.toFixed(2)}</td>
+                            <td className="py-4 font-price-display text-price-display text-right">{o.total.toLocaleString()}đ</td>
                           </tr>
                         ))
                       ) : (
                         <tr>
-                          <td className="py-4" colSpan={4}>Chưa có đơn hàng nào.</td>
+                          <td className="py-8 text-center text-on-surface-variant" colSpan={4}>
+                            <div className="flex flex-col items-center gap-2">
+                              <span className="material-symbols-outlined text-[32px] text-outline">receipt_long</span>
+                              <p>Chưa có đơn hàng nào.</p>
+                            </div>
+                          </td>
                         </tr>
                       )}
                     </tbody>
@@ -509,7 +541,7 @@ const UserInfoPage: React.FC = () => {
           )}
 
           {activeTab === 'settings' && (
-            <div className="space-y-12 animate-in fade-in duration-300">
+            <div className="space-y-8">
               <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10 space-y-4">
                 <h3 className="font-headline-md text-headline-md text-primary">Cài đặt tài khoản</h3>
                 <p className="text-on-surface-variant text-body-md">
@@ -526,7 +558,7 @@ const UserInfoPage: React.FC = () => {
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
           <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-md p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in duration-200">
             <div className="flex justify-between items-center">
-              <h3 className="text-headline-md font-bold text-primary">Edit Profile</h3>
+              <h3 className="text-headline-md font-bold text-primary">Chỉnh sửa hồ sơ</h3>
               <button
                 onClick={() => setIsProfileModalOpen(false)}
                 className="text-on-surface-variant hover:text-on-surface p-1 rounded-full hover:bg-surface-container-high transition-colors cursor-pointer"
@@ -536,24 +568,24 @@ const UserInfoPage: React.FC = () => {
             </div>
             <form onSubmit={handleProfileSubmit} className="space-y-4">
               <div className="flex flex-col gap-1">
-                <label className="text-label-lg font-bold text-on-surface-variant">Full Name *</label>
+                <label className="text-label-lg font-bold text-on-surface-variant">Họ và tên *</label>
                 <input
                   type="text"
                   required
                   value={profileForm.fullName}
                   onChange={(e) => setProfileForm({ ...profileForm, fullName: e.target.value })}
                   className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                  placeholder="Enter full name"
+                  placeholder="Nhập họ và tên"
                 />
               </div>
               <div className="flex flex-col gap-1">
-                <label className="text-label-lg font-bold text-on-surface-variant">Phone Number</label>
+                <label className="text-label-lg font-bold text-on-surface-variant">Số điện thoại</label>
                 <input
                   type="tel"
                   value={profileForm.phone}
                   onChange={(e) => setProfileForm({ ...profileForm, phone: e.target.value })}
                   className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                  placeholder="Enter phone number"
+                  placeholder="Nhập số điện thoại"
                 />
               </div>
               <div className="pt-4 flex justify-end gap-3">
@@ -562,7 +594,7 @@ const UserInfoPage: React.FC = () => {
                   onClick={() => setIsProfileModalOpen(false)}
                   className="px-5 py-2 rounded-full border border-outline text-on-surface-variant font-bold hover:bg-surface-container-high transition-all cursor-pointer"
                 >
-                  Cancel
+                  Huỷ
                 </button>
                 <button
                   type="submit"
@@ -570,7 +602,7 @@ const UserInfoPage: React.FC = () => {
                   className="px-6 py-2 rounded-full bg-primary text-white font-bold hover:bg-primary/95 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                 >
                   {isProfileSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                  Save Changes
+                  Lưu thay đổi
                 </button>
               </div>
             </form>
@@ -584,7 +616,7 @@ const UserInfoPage: React.FC = () => {
           <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-lg p-6 md:p-8 shadow-2xl space-y-6 my-8 animate-in fade-in duration-200">
             <div className="flex justify-between items-center">
               <h3 className="text-headline-md font-bold text-primary">
-                {editingAddress ? 'Edit Address' : 'Add New Address'}
+                {editingAddress ? 'Sửa địa chỉ' : 'Thêm địa chỉ mới'}
               </h3>
               <button
                 onClick={() => setIsAddressModalOpen(false)}
@@ -596,20 +628,24 @@ const UserInfoPage: React.FC = () => {
             <form onSubmit={handleAddressSubmit} className="space-y-4">
               {/* Type selector (HOME, WORK, OTHER) */}
               <div className="flex flex-col gap-2">
-                <label className="text-label-lg font-bold text-on-surface-variant">Label Type</label>
+                <label className="text-label-lg font-bold text-on-surface-variant">Loại địa chỉ</label>
                 <div className="flex gap-2">
-                  {(['HOME', 'WORK', 'OTHER'] as const).map((lbl) => (
+                  {([
+                    { key: 'HOME' as const, label: 'Nhà riêng' },
+                    { key: 'WORK' as const, label: 'Văn phòng' },
+                    { key: 'OTHER' as const, label: 'Khác' },
+                  ]).map((lbl) => (
                     <button
-                      key={lbl}
+                      key={lbl.key}
                       type="button"
-                      onClick={() => setAddressForm({ ...addressForm, label: lbl })}
+                      onClick={() => setAddressForm({ ...addressForm, label: lbl.key })}
                       className={`flex-1 py-2 border rounded-xl font-label-lg font-semibold transition-all cursor-pointer ${
-                        addressForm.label === lbl
+                        addressForm.label === lbl.key
                           ? 'bg-primary text-white border-primary'
                           : 'bg-surface-container-low text-on-surface-variant border-outline-variant hover:bg-surface-container-high'
                       }`}
                     >
-                      {lbl}
+                      {lbl.label}
                     </button>
                   ))}
                 </div>
@@ -617,84 +653,84 @@ const UserInfoPage: React.FC = () => {
 
               {addressForm.label === 'OTHER' && (
                 <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">Custom Label</label>
+                  <label className="text-label-lg font-bold text-on-surface-variant">Tên tuỳ chỉnh</label>
                   <input
                     type="text"
                     value={addressForm.customLabel}
                     onChange={(e) => setAddressForm({ ...addressForm, customLabel: e.target.value })}
                     className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="e.g. Grandma's House"
+                    placeholder="VD: Nhà bà ngoại"
                   />
                 </div>
               )}
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">Recipient Name *</label>
+                  <label className="text-label-lg font-bold text-on-surface-variant">Tên người nhận *</label>
                   <input
                     type="text"
                     required
                     value={addressForm.recipientName}
                     onChange={(e) => setAddressForm({ ...addressForm, recipientName: e.target.value })}
                     className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="Recipient's name"
+                    placeholder="Họ và tên người nhận"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">Recipient Phone *</label>
+                  <label className="text-label-lg font-bold text-on-surface-variant">Số điện thoại *</label>
                   <input
                     type="tel"
                     required
                     value={addressForm.recipientPhone}
                     onChange={(e) => setAddressForm({ ...addressForm, recipientPhone: e.target.value })}
                     className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="Recipient's phone"
+                    placeholder="SĐT người nhận"
                   />
                 </div>
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-label-lg font-bold text-on-surface-variant">Detailed Address *</label>
+                <label className="text-label-lg font-bold text-on-surface-variant">Địa chỉ chi tiết *</label>
                 <input
                   type="text"
                   required
                   value={addressForm.fullAddress}
                   onChange={(e) => setAddressForm({ ...addressForm, fullAddress: e.target.value })}
                   className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                  placeholder="Street name, building/apartment info"
+                  placeholder="Số nhà, tên đường, toà nhà..."
                 />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
                 <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">Ward / Commune</label>
+                  <label className="text-label-lg font-bold text-on-surface-variant">Phường/Xã</label>
                   <input
                     type="text"
                     value={addressForm.ward}
                     onChange={(e) => setAddressForm({ ...addressForm, ward: e.target.value })}
                     className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="Ward"
+                    placeholder="Phường/Xã"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">District</label>
+                  <label className="text-label-lg font-bold text-on-surface-variant">Quận/Huyện</label>
                   <input
                     type="text"
                     value={addressForm.district}
                     onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
                     className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="District"
+                    placeholder="Quận/Huyện"
                   />
                 </div>
                 <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">City / Province *</label>
+                  <label className="text-label-lg font-bold text-on-surface-variant">Tỉnh/Thành phố *</label>
                   <input
                     type="text"
                     required
                     value={addressForm.city}
                     onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
                     className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="City"
+                    placeholder="Tỉnh/TP"
                   />
                 </div>
               </div>
@@ -708,7 +744,7 @@ const UserInfoPage: React.FC = () => {
                   className="w-4 h-4 text-primary bg-surface-container-low border-outline-variant rounded focus:ring-primary focus:ring-offset-0 cursor-pointer"
                 />
                 <label htmlFor="isDefaultAddress" className="text-body-md font-semibold text-on-surface select-none cursor-pointer">
-                  Set as default shipping address
+                  Đặt làm địa chỉ giao hàng mặc định
                 </label>
               </div>
 
@@ -718,7 +754,7 @@ const UserInfoPage: React.FC = () => {
                   onClick={() => setIsAddressModalOpen(false)}
                   className="px-5 py-2 rounded-full border border-outline text-on-surface-variant font-bold hover:bg-surface-container-high transition-all cursor-pointer"
                 >
-                  Cancel
+                  Huỷ
                 </button>
                 <button
                   type="submit"
@@ -726,7 +762,7 @@ const UserInfoPage: React.FC = () => {
                   className="px-6 py-2 rounded-full bg-primary text-white font-bold hover:bg-primary/95 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
                 >
                   {isAddressSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
-                  Save Address
+                  Lưu địa chỉ
                 </button>
               </div>
             </form>

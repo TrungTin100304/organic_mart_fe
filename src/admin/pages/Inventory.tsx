@@ -2,18 +2,25 @@ import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { AlertTriangle, Search } from "lucide-react";
 import { getInventoryBatches, type InventoryBatch } from "../../services/inventoryBatchService";
+import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
+import { getMockInventoryBatches } from "../utils/mockAdapters";
 
 export default function Inventory() {
   const [search, setSearch] = useState("");
   const [batches, setBatches] = useState<InventoryBatch[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
+  const [dataSource, setDataSource] = useState<AdminDataSource>("api");
+  const [dataNotice, setDataNotice] = useState("");
 
   useEffect(() => {
     let mounted = true;
-    getInventoryBatches()
-      .then((data) => {
-        if (mounted) setBatches(data);
+    loadAdminDataWithFallback(getInventoryBatches, getMockInventoryBatches)
+      .then((result) => {
+        if (!mounted) return;
+        setBatches(result.data);
+        setDataSource(result.source);
+        setDataNotice(result.error || (result.source === "mock" ? "Dang hien thi du lieu mau." : ""));
       })
       .catch((err: any) => {
         if (mounted) setError(err?.message || "Khong the tai ton kho.");
@@ -52,7 +59,7 @@ export default function Inventory() {
     <div className="space-y-5 max-w-[1440px] mx-auto">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
         <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Quan ly ton kho</h1>
-        <p className="text-sm text-on-surface-variant mt-0.5">{lowStock} san pham can bo sung</p>
+        <p className="text-sm text-on-surface-variant mt-0.5">{lowStock} san pham can bo sung, {sourceLabel(dataSource)}</p>
       </motion.div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -75,6 +82,7 @@ export default function Inventory() {
       </div>
 
       {isLoading && <p className="text-on-surface-variant">Dang tai ton kho...</p>}
+      {dataNotice && !isLoading && <p className="text-amber-700 text-sm font-semibold">{dataNotice}</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
       {!isLoading && !error && (

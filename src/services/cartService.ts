@@ -25,29 +25,49 @@ export interface Cart {
 
 export const getCurrentCart = () => apiRequest<Cart>("/carts/me", { requireAuth: true });
 
-export const addCartItem = (productId: string | number, quantity = 1) =>
-  apiRequest<Cart>("/carts/items", {
+export const addCartItem = async (productId: string | number, quantity = 1) => {
+  const result = await apiRequest<Cart>("/carts/items", {
     method: "POST",
     body: toJsonBody({ productId: Number(productId), quantity }),
     requireAuth: true,
   });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("cart-updated", { detail: result }));
+  }
+  return result;
+};
 
 // Backend currently subtracts this quantity from the item.
-export const decreaseCartItem = (productId: string | number, quantity = 1) =>
-  apiRequest<Cart>(`/carts/items/${productId}`, {
+export const decreaseCartItem = async (productId: string | number, quantity = 1) => {
+  const result = await apiRequest<Cart>(`/carts/items/${productId}`, {
     method: "PATCH",
     body: toJsonBody({ quantity }),
     requireAuth: true,
   });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("cart-updated", { detail: result }));
+  }
+  return result;
+};
 
-export const removeCartItem = (productId: string | number) =>
-  apiRequest<Cart>(`/carts/items/${productId}`, {
+export const removeCartItem = async (productId: string | number) => {
+  const result = await apiRequest<Cart>(`/carts/items/${productId}`, {
     method: "DELETE",
     requireAuth: true,
   });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("cart-updated", { detail: result }));
+  }
+  return result;
+};
 
-export const clearCart = () =>
-  apiRequest<Cart>("/carts/me", {
+export const clearCart = async () => {
+  const result = await apiRequest<Cart>("/carts/me", {
     method: "DELETE",
     requireAuth: true,
   });
+  if (typeof window !== "undefined") {
+    window.dispatchEvent(new CustomEvent("cart-updated", { detail: result }));
+  }
+  return result;
+};
