@@ -33,6 +33,8 @@ const UserInfoPage: React.FC = () => {
   // Allergen state
   const [allergens, setAllergens] = useState<Allergen[]>([]);
   const [selectedAllergens, setSelectedAllergens] = useState<number[]>([]);
+  const [newAllergenName, setNewAllergenName] = useState('');
+  const [isAddingAllergen, setIsAddingAllergen] = useState(false);
 
   // Profile Modal State
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -110,6 +112,47 @@ const UserInfoPage: React.FC = () => {
     setSelectedAllergens(updated);
     localStorage.setItem(`user_allergens_${user.id}`, JSON.stringify(updated));
     showToast('Đã cập nhật tuỳ chọn chế độ ăn!', 'success');
+  };
+
+  const handleAddAllergen = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!user) return;
+
+    const trimmedName = newAllergenName.trim();
+    if (!trimmedName) {
+      showToast('Tên dị ứng không được để trống!', 'error');
+      return;
+    }
+
+    // Validate no duplicates (case-insensitive check against current list of allergens)
+    const isDuplicate = allergens.some(
+      (a) => a.name.toLowerCase() === trimmedName.toLowerCase()
+    );
+    if (isDuplicate) {
+      showToast('Tên dị ứng này đã tồn tại!', 'error');
+      return;
+    }
+
+    setIsAddingAllergen(true);
+    try {
+      const newAllergen = await allergenService.createAllergen(trimmedName);
+      
+      // Append returned allergen to the list
+      setAllergens((prev) => [...prev, newAllergen]);
+
+      // Auto select the new allergen ID
+      const updatedSelected = [...selectedAllergens, newAllergen.id];
+      setSelectedAllergens(updatedSelected);
+      localStorage.setItem(`user_allergens_${user.id}`, JSON.stringify(updatedSelected));
+
+      // Clear input field
+      setNewAllergenName('');
+      showToast('Thêm dị ứng mới thành công!', 'success');
+    } catch (err: any) {
+      showToast(err.message || 'Không thể thêm dị ứng mới', 'error');
+    } finally {
+      setIsAddingAllergen(false);
+    }
   };
 
   // Profile Edit
@@ -374,7 +417,7 @@ const UserInfoPage: React.FC = () => {
                 </div>
 
                 {allergens.length > 0 ? (
-                  <div className="flex flex-wrap gap-3">
+                  <div className="flex flex-wrap gap-3 mb-6">
                     {allergens.map((allergen) => {
                       const isSelected = selectedAllergens.includes(allergen.id);
                       return (
@@ -396,8 +439,40 @@ const UserInfoPage: React.FC = () => {
                     })}
                   </div>
                 ) : (
-                  <p className="text-on-surface-variant text-body-md">Đang tải tuỳ chọn chế độ ăn...</p>
+                  <p className="text-on-surface-variant text-body-md mb-6">Đang tải tuỳ chọn chế độ ăn...</p>
                 )}
+
+                {/* Add custom allergen input field */}
+                <div className="border-t border-outline-variant/30 pt-6 mt-6">
+                  <form onSubmit={handleAddAllergen} className="max-w-md">
+                    <label htmlFor="newAllergenInput" className="block text-label-lg font-bold text-on-surface-variant mb-2">
+                      Nhập tên dị ứng hoặc chế độ ăn mới
+                    </label>
+                    <div className="flex gap-2">
+                      <input
+                        id="newAllergenInput"
+                        type="text"
+                        value={newAllergenName}
+                        onChange={(e) => setNewAllergenName(e.target.value)}
+                        placeholder="VD: Không ăn tinh bột, Dị ứng kiwi..."
+                        className="flex-1 px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                        disabled={isAddingAllergen}
+                      />
+                      <button
+                        type="submit"
+                        disabled={isAddingAllergen}
+                        className="px-5 py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary/95 transition-all active:scale-95 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm whitespace-nowrap"
+                      >
+                        {isAddingAllergen ? (
+                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                        ) : (
+                          <span className="material-symbols-outlined text-[20px]">add</span>
+                        )}
+                        Thêm mới
+                      </button>
+                    </div>
+                  </form>
+                </div>
               </section>
             </div>
           )}

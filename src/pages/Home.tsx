@@ -195,11 +195,11 @@ export default function Home() {
 
         {/* Sản phẩm được yêu thích */}
         <motion.section
-            variants={staggerContainer}
-            initial="initial"
-            animate="whileInView"
-            viewport={{ once: true, margin: "-50px" }}
-            className="mb-20"
+          variants={staggerContainer}
+          initial="initial"
+          animate="whileInView"
+          viewport={{ once: true, margin: "-50px" }}
+          className="mb-20"
         >
           <div className="flex items-center justify-between mb-stack-md">
             <h2 className="text-headline-md font-bold text-primary flex items-center gap-2">
