@@ -40,7 +40,7 @@ export default function Shop() {
         setCategories(categoryList);
       })
       .catch((err: any) => {
-        if (mounted) setError(err?.message || "Khong the tai san pham.");
+        if (mounted) setError(err?.message || "Không thể tải sản phẩm.");
       })
       .finally(() => {
         if (mounted) setIsLoading(false);
@@ -67,9 +67,9 @@ export default function Shop() {
   return (
     <div className="max-w-7xl mx-auto px-4 md:px-10 py-6 md:py-10">
       <motion.nav {...fadeIn} className="flex items-center gap-2 mb-6 md:mb-8 text-on-surface-variant text-sm font-medium">
-        <a href="/" className="hover:text-primary transition-colors">Trang chu</a>
+        <a href="/" className="hover:text-primary transition-colors">Trang chủ</a>
         <ChevronRight className="size-4" />
-        <span className="text-primary font-bold">Cua hang</span>
+        <span className="text-primary font-bold">Cửa hàng</span>
       </motion.nav>
 
       <div className="flex flex-col md:grid md:grid-cols-12 gap-6 md:gap-8">
@@ -163,14 +163,14 @@ export default function Shop() {
           </div>
 
           <div className="hidden md:block">
-            <h3 className="font-bold mb-4 border-b border-outline-variant pb-2 uppercase text-xs tracking-widest opacity-60">San pham noi bat</h3>
+            <h3 className="font-bold mb-4 border-b border-outline-variant pb-2 uppercase text-xs tracking-widest opacity-60">Sản phẩm nổi bật</h3>
             <div className="space-y-4">
               {products.slice(0, 2).map((p) => (
                 <div key={p.id} className="flex gap-4 group cursor-pointer">
                   <img src={p.image} className="size-16 object-cover rounded-lg border border-outline-variant" alt={p.name} />
                   <div>
                     <h4 className="text-xs font-semibold line-clamp-2 group-hover:text-primary">{p.name}</h4>
-                    <p className="text-primary font-bold text-sm">{p.price.toLocaleString()}d</p>
+                    <p className="text-primary font-bold text-sm">{p.price.toLocaleString()}đ</p>
                   </div>
                 </div>
               ))}
@@ -186,28 +186,28 @@ export default function Shop() {
         >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-8 bg-white p-4 rounded-2xl border border-outline-variant gap-4">
             <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
-              <span className="font-bold hidden sm:block opacity-60">Hien thi {filteredProducts.length}</span>
+              <span className="font-bold hidden sm:block opacity-60">Hiển thị {filteredProducts.length}</span>
               <div className="flex gap-2">
                 <button className="p-2 text-primary border border-primary rounded-lg bg-primary-container/20"><LayoutGrid size={20} /></button>
                 <button className="p-2 text-on-surface-variant border border-transparent rounded-lg hover:text-primary hover:bg-surface-container"><List size={20} /></button>
               </div>
             </div>
             <div className="flex items-center gap-3 w-full sm:w-auto overflow-hidden">
-              <span className="text-sm font-semibold whitespace-nowrap">Sap xep:</span>
+              <span className="text-sm font-semibold whitespace-nowrap">Sắp xếp:</span>
               <select
                 value={sort}
                 onChange={(event) => setSort(event.target.value)}
                 className="flex-1 w-full border-outline-variant rounded-xl bg-surface-container-low text-sm px-4 py-2 focus:ring-primary focus:border-primary border outline-none"
               >
-                <option value="default">Mac dinh</option>
-                <option value="price-asc">Gia tang dan</option>
-                <option value="price-desc">Gia giam dan</option>
-                <option value="newest">Moi nhat</option>
+                <option value="default">Mặc định</option>
+                <option value="price-asc">Giá tăng dần</option>
+                <option value="price-desc">Giá giảm dần</option>
+                <option value="newest">Mới nhất</option>
               </select>
             </div>
           </div>
 
-          {isLoading && <p className="text-on-surface-variant">Dang tai san pham...</p>}
+          {isLoading && <p className="text-on-surface-variant">Đang tải sản phẩm...</p>}
           {error && <p className="text-red-600 font-semibold">{error}</p>}
           {!isLoading && !error && (
             <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-2 lg:grid-cols-3 gap-6">

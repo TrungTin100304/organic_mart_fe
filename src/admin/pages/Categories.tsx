@@ -20,9 +20,9 @@ export default function Categories() {
       const result = await loadAdminDataWithFallback(getProductCategories, getMockProductCategories);
       setCategories(result.data);
       setDataSource(result.source);
-      setDataNotice(result.error || (result.source === "mock" ? "Dang hien thi du lieu mau." : ""));
+      setDataNotice(result.error || (result.source === "mock" ? "Đang hiển thị dữ liệu mẫu." : ""));
     } catch (err: any) {
-      setError(err?.message || "Khong the tai danh muc.");
+      setError(err?.message || "Không thể tải danh mục.");
     } finally {
       setIsLoading(false);
     }
@@ -33,7 +33,7 @@ export default function Categories() {
   }, []);
 
   const handleCreate = async () => {
-    const name = window.prompt("Ten danh muc moi");
+    const name = window.prompt("Tên danh mục mới");
     if (!name?.trim()) return;
     if (dataSource === "mock") {
       setCategories((current) => [
@@ -53,7 +53,7 @@ export default function Categories() {
       await createProductCategory({ name: name.trim(), sortOrder: categories.length + 1 });
       await loadCategories();
     } catch (err: any) {
-      alert(err?.message || "Khong the tao danh muc.");
+      alert(err?.message || "Không thể tạo danh mục.");
     }
   };
 
@@ -61,15 +61,15 @@ export default function Categories() {
     <div className="space-y-5 max-w-[1440px] mx-auto">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Danh muc</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">{categories.length} danh muc {sourceLabel(dataSource)}</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Danh mục</h1>
+          <p className="text-sm text-on-surface-variant mt-0.5">{categories.length} danh mục {sourceLabel(dataSource)}</p>
         </div>
         <button onClick={handleCreate} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all">
-          <Plus className="w-4 h-4" /> Them danh muc
+          <Plus className="w-4 h-4" /> Thêm danh mục
         </button>
       </motion.div>
 
-      {isLoading && <p className="text-on-surface-variant">Dang tai danh muc...</p>}
+      {isLoading && <p className="text-on-surface-variant">Đang tải danh mục...</p>}
       {dataNotice && !isLoading && <p className="text-amber-700 text-sm font-semibold">{dataNotice}</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
@@ -93,7 +93,7 @@ export default function Categories() {
                 </div>
               </div>
               <div className="flex items-center justify-between">
-                <span className="text-sm text-on-surface-variant">Thu tu: {category.sortOrder}</span>
+                <span className="text-sm text-on-surface-variant">Thứ tự: {category.sortOrder}</span>
                 <span className="text-xs text-on-surface-variant">ID {category.id}</span>
               </div>
             </motion.div>

@@ -65,14 +65,14 @@ export default function Dashboard() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Dashboard</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">Xin chao, {adminName}! Tong quan hom nay {sourceLabel(dataSource)}.</p>
+          <p className="text-sm text-on-surface-variant mt-0.5">Xin chào, {adminName}! Tổng quan hôm nay {sourceLabel(dataSource)}.</p>
         </div>
         <div className="flex items-center gap-2">
           <button className="flex items-center gap-2 px-3 py-2 border border-outline-variant/30 rounded-xl text-xs font-medium text-on-surface-variant hover:bg-surface-container-low transition-colors">
-            <Calendar className="w-3.5 h-3.5" /> Hom nay, {today}
+            <Calendar className="w-3.5 h-3.5" /> Hôm nay, {today}
           </button>
           <button className="flex items-center gap-2 px-3 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:brightness-110 transition-all">
-            <Download className="w-3.5 h-3.5" /> Xuat bao cao
+            <Download className="w-3.5 h-3.5" /> Xuất báo cáo
           </button>
         </div>
       </motion.div>

@@ -12,7 +12,7 @@ const fallbackData = <T>(fallback: FallbackValue<T>) =>
   typeof fallback === "function" ? (fallback as () => T)() : fallback;
 
 const errorMessage = (error: unknown) =>
-  error instanceof Error ? error.message : "Khong the ket noi API.";
+  error instanceof Error ? error.message : "Không thể kết nối API.";
 
 export async function loadAdminDataWithFallback<T>(
   loader: () => Promise<T>,
@@ -33,4 +33,4 @@ export async function loadAdminDataWithFallback<T>(
 }
 
 export const sourceLabel = (source: AdminDataSource) =>
-  source === "api" ? "tu API" : "du lieu mau";
+  source === "api" ? "từ API" : "dữ liệu mẫu";

@@ -17,7 +17,7 @@ export const useCart = () => {
       const data = await getMyCart();
       setCart(data);
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Khong the lay thong tin gio hang';
+      const message = e instanceof Error ? e.message : 'Không thể lấy thông tin giỏ hàng';
       setError(message);
     } finally {
       setIsLoadingCart(false);
@@ -26,11 +26,11 @@ export const useCart = () => {
 
   const addItem = async (productId: number, quantity: number): Promise<Cart | null> => {
     if (!Number.isFinite(productId) || productId <= 0) {
-      setError('San pham khong hop le');
+      setError('Sản phẩm không hợp lệ');
       return null;
     }
     if (!Number.isFinite(quantity) || quantity <= 0) {
-      setError('So luong khong hop le');
+      setError('Số lượng không hợp lệ');
       return null;
     }
 
@@ -42,7 +42,7 @@ export const useCart = () => {
       setCart(data); // Update cart state with newest cart data
       return data;
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Them vao gio hang that bai';
+      const message = e instanceof Error ? e.message : 'Thêm vào giỏ hàng thất bại';
       setError(message);
       return null;
     } finally {
@@ -52,7 +52,7 @@ export const useCart = () => {
 
   const updateItem = async (itemId: number, quantity: number): Promise<Cart | null> => {
     if (quantity <= 0) {
-      setError('So luong phai lon hon 0');
+      setError('Số lượng phải lớn hơn 0');
       return null;
     }
 
@@ -64,7 +64,7 @@ export const useCart = () => {
       setCart(data);
       return data;
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Cap nhat that bai';
+      const message = e instanceof Error ? e.message : 'Cập nhật thất bại';
       setError(message);
       return null;
     } finally {
@@ -81,7 +81,7 @@ export const useCart = () => {
       setCart(data);
       return data;
     } catch (e: unknown) {
-      const message = e instanceof Error ? e.message : 'Xoa that bai';
+      const message = e instanceof Error ? e.message : 'Xóa thất bại';
       setError(message);
       return null;
     } finally {

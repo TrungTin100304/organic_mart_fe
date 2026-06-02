@@ -8,9 +8,9 @@ export const PROMOTIONS: Promotion[] = [
 ];
 
 export const REVIEWS: Review[] = [
-  { id: "r1", productName: "Khoai mo Organic 300gr", customerName: "Nguyen Van An", rating: 5, comment: "Khoai rat ngon, bui va ngot tu nhien!", createdAt: "2025-05-15", status: "approved" },
-  { id: "r2", productName: "Cai kale Organic 300gr", customerName: "Hoang Thu Ha", rating: 4, comment: "Cai tuoi, gion, dong goi can than.", createdAt: "2025-05-14", status: "approved" },
-  { id: "r3", productName: "Granola huu co 500gr", customerName: "Tran Thi Bich", rating: 5, comment: "Granola rat ngon, an voi sua chua tuyet voi!", createdAt: "2025-05-16", status: "pending" },
-  { id: "r4", productName: "Mat ong rung 500ml", customerName: "Pham Duc Dung", rating: 2, comment: "Mat ong hoi loang, khong dung nhu mo ta.", createdAt: "2025-05-13", status: "pending" },
-  { id: "r5", productName: "Tao Fuji 1kg", customerName: "Dang Thi Mai", rating: 4, comment: "Tao ngot, gion, giao hang nhanh.", createdAt: "2025-05-12", status: "approved" },
+  { id: "r1", productName: "Khoai mỡ Organic 300gr", customerName: "Nguyễn Văn An", rating: 5, comment: "Khoai rất ngon, bùi và ngọt tự nhiên!", createdAt: "2025-05-15", status: "approved" },
+  { id: "r2", productName: "Cải kale Organic 300gr", customerName: "Hoàng Thu Hà", rating: 4, comment: "Cải tươi, giòn, đóng gói cẩn thận.", createdAt: "2025-05-14", status: "approved" },
+  { id: "r3", productName: "Granola hữu cơ 500gr", customerName: "Trần Thị Bích", rating: 5, comment: "Granola rất ngon, ăn với sữa chua tuyệt vời!", createdAt: "2025-05-16", status: "pending" },
+  { id: "r4", productName: "Mật ong rừng 500ml", customerName: "Phạm Đức Dũng", rating: 2, comment: "Mật ong hơi loãng, không đúng như mô tả.", createdAt: "2025-05-13", status: "pending" },
+  { id: "r5", productName: "Táo Fuji 1kg", customerName: "Đặng Thị Mai", rating: 4, comment: "Táo ngọt, giòn, giao hàng nhanh.", createdAt: "2025-05-12", status: "approved" },
 ];

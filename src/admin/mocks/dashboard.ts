@@ -11,11 +11,11 @@ export const REVENUE_7_DAYS: RevenuePoint[] = [
 ];
 
 export const REVENUE_BY_CATEGORY: CategoryRevenuePoint[] = [
-  { name: "Rau cu", value: 4500000 },
-  { name: "Trai cay", value: 3200000 },
-  { name: "Sua & do uong", value: 1800000 },
-  { name: "Do kho", value: 2100000 },
-  { name: "Khac", value: 900000 },
+  { name: "Rau củ", value: 4500000 },
+  { name: "Trái cây", value: 3200000 },
+  { name: "Sữa & đồ uống", value: 1800000 },
+  { name: "Đồ khô", value: 2100000 },
+  { name: "Khác", value: 900000 },
 ];
 
 export const DASHBOARD_STATS: DashboardStats = {

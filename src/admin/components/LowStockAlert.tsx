@@ -28,7 +28,7 @@ export default function LowStockAlert() {
     <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-5">
       <div className="flex items-center justify-between mb-4">
         <h3 className="font-bold text-on-surface flex items-center gap-2">
-          <AlertTriangle className="w-4 h-4 text-amber-600" /> Canh bao ton kho
+          <AlertTriangle className="w-4 h-4 text-amber-600" /> Cảnh báo tồn kho
         </h3>
         <Link to="/admin/inventory" className="text-xs font-bold text-primary hover:underline">Xem kho</Link>
       </div>
@@ -43,12 +43,12 @@ export default function LowStockAlert() {
               <p className="text-[11px] text-on-surface-variant">ID {product.id}</p>
             </div>
             <div className="text-right">
-              <p className={`text-sm font-bold ${product.stock <= 5 ? "text-red-600" : "text-amber-600"}`}>Con {product.stock}</p>
+              <p className={`text-sm font-bold ${product.stock <= 5 ? "text-red-600" : "text-amber-600"}`}>Còn {product.stock}</p>
             </div>
           </div>
         ))}
         {lowStock.length === 0 && (
-          <p className="text-sm text-on-surface-variant text-center py-4">Ton kho on dinh</p>
+          <p className="text-sm text-on-surface-variant text-center py-4">Tồn kho ổn định</p>
         )}
       </div>
     </div>

@@ -3,12 +3,12 @@ import { Check, CreditCard, FileText, MapPin, Package, PackageCheck, Printer, Tr
 import type { AdminOrder } from "../types";
 
 const paymentMap: Record<AdminOrder["paymentStatus"], { label: string; cls: string }> = {
-  paid: { label: "Da TT", cls: "text-emerald-700 bg-emerald-50" },
-  pending: { label: "Cho TT", cls: "text-amber-700 bg-amber-50" },
-  refunded: { label: "Hoan tien", cls: "text-red-600 bg-red-50" },
+  paid: { label: "Đã TT", cls: "text-emerald-700 bg-emerald-50" },
+  pending: { label: "Chờ TT", cls: "text-amber-700 bg-amber-50" },
+  refunded: { label: "Hoàn tiền", cls: "text-red-600 bg-red-50" },
 };
 
-const timelineSteps = ["Dat hang", "Xac nhan", "Dong goi", "Giao hang", "Hoan tat"];
+const timelineSteps = ["Đặt hàng", "Xác nhận", "Đóng gói", "Giao hàng", "Hoàn tất"];
 const statusToStep: Record<AdminOrder["orderStatus"], number> = {
   pending: 0,
   processing: 1,
@@ -47,7 +47,7 @@ export default function OrderDetailDrawer({ onClose, order }: OrderDetailDrawerP
               </div>
 
               <div className="mb-6">
-                <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-3">Tien trinh</h4>
+                <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-3">Tiến trình</h4>
                 <div className="flex items-center gap-1">
                   {timelineSteps.map((step, index) => {
                     const current = statusToStep[order.orderStatus];
@@ -66,16 +66,16 @@ export default function OrderDetailDrawer({ onClose, order }: OrderDetailDrawerP
 
               {order.orderStatus !== "delivered" && order.orderStatus !== "cancelled" && (
                 <div className="flex gap-2 mb-6 flex-wrap">
-                  {order.orderStatus === "pending" && <button className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:brightness-110"><Check className="w-3.5 h-3.5" />Xac nhan</button>}
-                  {order.orderStatus === "processing" && <button className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 text-white rounded-xl text-xs font-bold hover:brightness-110"><Truck className="w-3.5 h-3.5" />Giao hang</button>}
-                  {order.orderStatus === "shipped" && <button className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:brightness-110"><PackageCheck className="w-3.5 h-3.5" />Hoan tat</button>}
-                  <button className="flex items-center gap-1.5 px-3 py-2 border border-red-200 text-red-600 rounded-xl text-xs font-bold hover:bg-red-50"><XCircle className="w-3.5 h-3.5" />Huy don</button>
-                  <button className="flex items-center gap-1.5 px-3 py-2 border border-outline-variant/30 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container"><Printer className="w-3.5 h-3.5" />In hoa don</button>
+                  {order.orderStatus === "pending" && <button className="flex items-center gap-1.5 px-3 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:brightness-110"><Check className="w-3.5 h-3.5" />Xác nhận</button>}
+                  {order.orderStatus === "processing" && <button className="flex items-center gap-1.5 px-3 py-2 bg-cyan-600 text-white rounded-xl text-xs font-bold hover:brightness-110"><Truck className="w-3.5 h-3.5" />Giao hàng</button>}
+                  {order.orderStatus === "shipped" && <button className="flex items-center gap-1.5 px-3 py-2 bg-emerald-600 text-white rounded-xl text-xs font-bold hover:brightness-110"><PackageCheck className="w-3.5 h-3.5" />Hoàn tất</button>}
+                  <button className="flex items-center gap-1.5 px-3 py-2 border border-red-200 text-red-600 rounded-xl text-xs font-bold hover:bg-red-50"><XCircle className="w-3.5 h-3.5" />Hủy đơn</button>
+                  <button className="flex items-center gap-1.5 px-3 py-2 border border-outline-variant/30 text-on-surface-variant rounded-xl text-xs font-bold hover:bg-surface-container"><Printer className="w-3.5 h-3.5" />In hóa đơn</button>
                 </div>
               )}
 
               <div className="mb-6">
-                <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-3">San pham</h4>
+                <h4 className="text-xs font-bold text-on-surface-variant uppercase tracking-wider mb-3">Sản phẩm</h4>
                 <div className="space-y-2">
                   {order.items.map((item, index) => (
                     <div key={`${item.name}-${index}`} className="flex items-center justify-between p-3 rounded-xl bg-surface-container-low">
@@ -95,11 +95,11 @@ export default function OrderDetailDrawer({ onClose, order }: OrderDetailDrawerP
               </div>
 
               <div className="bg-surface-container-low rounded-xl p-4 mb-6 space-y-2 text-sm">
-                <div className="flex justify-between"><span className="text-on-surface-variant">Tam tinh</span><span>{(order.total - order.shippingFee + order.discount).toLocaleString()}₫</span></div>
-                <div className="flex justify-between"><span className="text-on-surface-variant">Phi giao hang</span><span>{order.shippingFee.toLocaleString()}₫</span></div>
-                {order.discount > 0 && <div className="flex justify-between"><span className="text-on-surface-variant">Giam gia</span><span className="text-red-600">-{order.discount.toLocaleString()}₫</span></div>}
+                <div className="flex justify-between"><span className="text-on-surface-variant">Tạm tính</span><span>{(order.total - order.shippingFee + order.discount).toLocaleString()}₫</span></div>
+                <div className="flex justify-between"><span className="text-on-surface-variant">Phí giao hàng</span><span>{order.shippingFee.toLocaleString()}₫</span></div>
+                {order.discount > 0 && <div className="flex justify-between"><span className="text-on-surface-variant">Giảm giá</span><span className="text-red-600">-{order.discount.toLocaleString()}₫</span></div>}
                 <hr className="border-outline-variant/20" />
-                <div className="flex justify-between font-bold text-base"><span>Tong cong</span><span className="text-primary">{order.total.toLocaleString()}₫</span></div>
+                <div className="flex justify-between font-bold text-base"><span>Tổng cộng</span><span className="text-primary">{order.total.toLocaleString()}₫</span></div>
               </div>
 
               <div className="space-y-3">
@@ -119,7 +119,7 @@ export default function OrderDetailDrawer({ onClose, order }: OrderDetailDrawerP
                   <div className="flex items-start gap-3 p-3 rounded-xl bg-amber-50/50 border border-amber-100">
                     <FileText className="w-4 h-4 text-amber-600 mt-0.5 shrink-0" />
                     <div>
-                      <p className="text-xs font-bold text-amber-700 mb-0.5">Ghi chu</p>
+                      <p className="text-xs font-bold text-amber-700 mb-0.5">Ghi chú</p>
                       <p className="text-sm text-on-surface">{order.note}</p>
                     </div>
                   </div>
