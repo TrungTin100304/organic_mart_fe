@@ -28,16 +28,12 @@ export default function Cart() {
     try {
       setCart(await getCurrentCart());
     } catch (err: any) {
-<<<<<<< HEAD
       const message = err?.message || "";
       if (message.includes("read-only") || message.includes("read only")) {
         setError("Hệ thống đang bảo trì. Vui lòng thử lại sau.");
       } else {
-        setError(message || "Khong the tai gio hang.");
+        setError(message || "Không thể tải giỏ hàng.");
       }
-=======
-      setError(err?.message || "Không thể tải giỏ hàng.");
->>>>>>> bbae9ffe4addea90fc39ea5ae1473648fa1286b3
     } finally {
       setIsLoading(false);
     }
@@ -51,16 +47,12 @@ export default function Cart() {
     try {
       setCart(await action());
     } catch (err: any) {
-<<<<<<< HEAD
       const message = err?.message || "";
       if (message.includes("read-only") || message.includes("read only")) {
         setError("Hệ thống đang bảo trì. Vui lòng thử lại sau.");
       } else {
-        setError(message || "Khong the cap nhat gio hang.");
+        setError(message || "Không thể cập nhật giỏ hàng.");
       }
-=======
-      setError(err?.message || "Không thể cập nhật giỏ hàng.");
->>>>>>> bbae9ffe4addea90fc39ea5ae1473648fa1286b3
     }
   };
 
