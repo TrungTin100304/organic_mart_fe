@@ -14,8 +14,14 @@ export interface ApiRequestOptions extends RequestInit {
 const DEFAULT_API_BASE_URL = "https://organic-mart-be-1.onrender.com/api/v1";
 
 const getConfiguredBaseUrl = () => {
-  const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;
-  return viteEnv?.VITE_API_BASE_URL || DEFAULT_API_BASE_URL;
+  const viteEnv = (import.meta as ImportMeta & { env?: Record<string, any> }).env;
+  const baseUrl = viteEnv?.VITE_API_BASE_URL;
+  
+  if (viteEnv?.PROD && baseUrl && typeof baseUrl === "string" && baseUrl.startsWith("/")) {
+    return DEFAULT_API_BASE_URL;
+  }
+  
+  return baseUrl || DEFAULT_API_BASE_URL;
 };
 
 export const getApiBaseUrl = (value = getConfiguredBaseUrl()) => value.replace(/\/+$/, "");
