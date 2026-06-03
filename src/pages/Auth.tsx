@@ -67,7 +67,7 @@ export default function Auth() {
       console.error("Login Error:", err);
       let errorMessage = err.message || "Đăng nhập thất bại, vui lòng kiểm tra lại ID/Mật khẩu";
       if (errorMessage.includes("Invalid email or password") || err?.response?.data?.message === "Invalid email or password" || err?.message === "Invalid email or password") {
-         errorMessage = "Email hoặc mật khẩu không chính xác.";
+        errorMessage = "Email hoặc mật khẩu không chính xác.";
       }
       setLoginError(errorMessage);
     } finally {
@@ -283,7 +283,7 @@ export default function Auth() {
 
         {/* MOBILE VIEW (< lg breakpoint) */}
         <div className="flex lg:hidden w-full flex-col h-full flex-1 relative overflow-y-auto px-6 py-8 pt-24 items-center justify-center">
-           {isLogin ? renderLoginForm() : renderRegisterForm()}
+          {isLogin ? renderLoginForm() : renderRegisterForm()}
         </div>
 
         {/* DESKTOP VIEW (>= lg breakpoint) */}
@@ -291,23 +291,22 @@ export default function Auth() {
 
           {/* Login Form (Left Half) */}
           <div className="w-1/2 p-12 xl:p-16 pt-24 flex items-center justify-center bg-white z-10">
-             <div className="mt-8">{renderLoginForm()}</div>
+            <div className="mt-8">{renderLoginForm()}</div>
           </div>
 
           {/* Register Form (Right Half) */}
           <div className="w-1/2 p-12 xl:p-16 pt-24 flex items-center justify-center bg-white z-10">
-             <div className="mt-8">{renderRegisterForm()}</div>
+            <div className="mt-8">{renderRegisterForm()}</div>
           </div>
 
           {/* Slider Overlay (Split Screen Image) */}
           <div
-            className={`absolute top-0 bottom-0 w-1/2 transition-transform duration-700 ease-in-out z-40 overflow-hidden ${
-              isLogin ? "translate-x-full" : "translate-x-0"
-            }`}
+            className={`absolute top-0 bottom-0 w-1/2 transition-transform duration-700 ease-in-out z-40 overflow-hidden ${isLogin ? "translate-x-full" : "translate-x-0"
+              }`}
           >
             <div className="absolute inset-0 bg-primary/20 mix-blend-multiply z-10"></div>
             <img
-              src="https://scontent-sin2-1.xx.fbcdn.net/v/t39.30808-6/472232135_613967387979244_6726330731394391250_n.jpg?_nc_cat=102&ccb=1-7&_nc_sid=cc71e4&_nc_ohc=JHIYo9MOEwEQ7kNvwEri9gQ&_nc_oc=Adpaql36RViKG34xfk-dP5pkynTQWLlvbORA3gBVkOntqpBOdks8qVHfwHvy22lfP57tTIyE0Z8xJGWujXuLkSsv&_nc_zt=23&_nc_ht=scontent-sin2-1.xx&_nc_gid=jyBm6r2O-ny1thEQhg6ChA&_nc_ss=7b289&oh=00_Af47fug2kXy9Em43cHeaLolJalDjnhWYorWU8J0Lyi8cJg&oe=6A0B80F4"
+              src="https://quangphunongnghiepnuilua.com/wp-content/uploads/2025/06/2.jpg"
               alt="Organic Food"
               className="w-full h-full object-cover"
             />
