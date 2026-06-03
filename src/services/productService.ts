@@ -90,6 +90,7 @@ const productFormData = (values: ProductFormValues) => {
   formData.append("price", String(values.price || 0));
   formData.append("unit", values.unit?.trim() || "kg");
   formData.append("isActive", String(values.isActive));
+  formData.append("active", String(values.isActive));
   values.allergenIds?.forEach((id) => formData.append("allergenIds", String(id)));
   if (values.imageFile) {
     formData.append("imageFile", values.imageFile);

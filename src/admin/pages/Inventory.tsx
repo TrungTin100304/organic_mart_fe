@@ -20,10 +20,10 @@ export default function Inventory() {
         if (!mounted) return;
         setBatches(result.data);
         setDataSource(result.source);
-        setDataNotice(result.error || (result.source === "mock" ? "Dang hien thi du lieu mau." : ""));
+        setDataNotice(result.error || (result.source === "mock" ? "Đang hiển thị dữ liệu mẫu." : ""));
       })
       .catch((err: any) => {
-        if (mounted) setError(err?.message || "Khong the tai ton kho.");
+        if (mounted) setError(err?.message || "Không thể tải tồn kho.");
       })
       .finally(() => {
         if (mounted) setIsLoading(false);
@@ -58,16 +58,16 @@ export default function Inventory() {
   return (
     <div className="space-y-5 max-w-[1440px] mx-auto">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Quan ly ton kho</h1>
-        <p className="text-sm text-on-surface-variant mt-0.5">{lowStock} san pham can bo sung, {sourceLabel(dataSource)}</p>
+        <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Quản lý tồn kho</h1>
+        <p className="text-sm text-on-surface-variant mt-0.5">{lowStock} sản phẩm cần bổ sung, {sourceLabel(dataSource)}</p>
       </motion.div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
         {[
-          { label: "Tong san pham", value: productStock.length, cls: "text-primary" },
-          { label: "Het hang", value: outOfStock, cls: "text-red-600" },
-          { label: "Sap het (<=10)", value: lowStock, cls: "text-amber-600" },
-          { label: "Lo hang", value: batches.length, cls: "text-emerald-700" },
+          { label: "Tổng sản phẩm", value: productStock.length, cls: "text-primary" },
+          { label: "Hết hàng", value: outOfStock, cls: "text-red-600" },
+          { label: "Sắp hết (<=10)", value: lowStock, cls: "text-amber-600" },
+          { label: "Lô hàng", value: batches.length, cls: "text-emerald-700" },
         ].map((s, i) => (
           <div key={i} className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 p-4 text-center">
             <p className={`text-2xl font-bold ${s.cls}`}>{s.value}</p>
@@ -78,10 +78,10 @@ export default function Inventory() {
 
       <div className="flex items-center bg-surface-container-lowest border border-outline-variant/30 rounded-xl px-3 py-2 max-w-md focus-within:border-primary/40 transition-colors">
         <Search className="w-4 h-4 text-on-surface-variant/50" />
-        <input value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder:text-on-surface-variant/40" placeholder="Tim san pham..." />
+        <input value={search} onChange={(e) => setSearch(e.target.value)} className="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder:text-on-surface-variant/40" placeholder="Tìm sản phẩm..." />
       </div>
 
-      {isLoading && <p className="text-on-surface-variant">Dang tai ton kho...</p>}
+      {isLoading && <p className="text-on-surface-variant">Đang tải tồn kho...</p>}
       {dataNotice && !isLoading && <p className="text-amber-700 text-sm font-semibold">{dataNotice}</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
@@ -91,12 +91,12 @@ export default function Inventory() {
             <table className="w-full text-sm min-w-[700px]">
               <thead>
                 <tr className="text-left text-on-surface-variant/70 text-xs border-b border-outline-variant/20 bg-surface-container-low/30">
-                  <th className="px-5 py-3 font-semibold">San pham</th>
+                  <th className="px-5 py-3 font-semibold">Sản phẩm</th>
                   <th className="px-5 py-3 font-semibold">ID</th>
-                  <th className="px-5 py-3 font-semibold">So lo</th>
-                  <th className="px-5 py-3 font-semibold">Ton kho</th>
-                  <th className="px-5 py-3 font-semibold">Lo het han</th>
-                  <th className="px-5 py-3 font-semibold">Trang thai</th>
+                  <th className="px-5 py-3 font-semibold">Số lô</th>
+                  <th className="px-5 py-3 font-semibold">Tồn kho</th>
+                  <th className="px-5 py-3 font-semibold">Lô hết hạn</th>
+                  <th className="px-5 py-3 font-semibold">Trạng thái</th>
                 </tr>
               </thead>
               <tbody>
@@ -111,11 +111,11 @@ export default function Inventory() {
                     <td className="px-5 py-3 text-on-surface-variant">{item.expiredCount}</td>
                     <td className="px-5 py-3">
                       {item.quantity === 0 ? (
-                        <span className="flex items-center gap-1 text-[11px] font-bold text-red-600"><AlertTriangle className="w-3.5 h-3.5" />Het hang</span>
+                        <span className="flex items-center gap-1 text-[11px] font-bold text-red-600"><AlertTriangle className="w-3.5 h-3.5" />Hết hàng</span>
                       ) : item.quantity <= 10 ? (
-                        <span className="flex items-center gap-1 text-[11px] font-bold text-amber-600"><AlertTriangle className="w-3.5 h-3.5" />Sap het</span>
+                        <span className="flex items-center gap-1 text-[11px] font-bold text-amber-600"><AlertTriangle className="w-3.5 h-3.5" />Sắp hết</span>
                       ) : (
-                        <span className="text-[11px] font-bold text-emerald-700">Du hang</span>
+                        <span className="text-[11px] font-bold text-emerald-700">Đủ hàng</span>
                       )}
                     </td>
                   </tr>

@@ -20,9 +20,9 @@ export default function Farms() {
       const result = await loadAdminDataWithFallback(getFarms, () => ADMIN_FARMS);
       setFarms(result.data);
       setDataSource(result.source);
-      setDataNotice(result.error || (result.source === "mock" ? "Dang hien thi du lieu mau." : ""));
+      setDataNotice(result.error || (result.source === "mock" ? "Đang hiển thị dữ liệu mẫu." : ""));
     } catch (err: any) {
-      setError(err?.message || "Khong the tai nong trai.");
+      setError(err?.message || "Không thể tải nông trại.");
     } finally {
       setIsLoading(false);
     }
@@ -33,9 +33,9 @@ export default function Farms() {
   }, []);
 
   const handleCreate = async () => {
-    const name = window.prompt("Ten nong trai");
+    const name = window.prompt("Tên nông trại");
     if (!name?.trim()) return;
-    const location = window.prompt("Dia diem") || "";
+    const location = window.prompt("Địa điểm") || "";
     if (dataSource === "mock") {
       setFarms((current) => [
         {
@@ -56,14 +56,14 @@ export default function Farms() {
       await createFarm({ name: name.trim(), location, certification: "", contactPhone: "", contactEmail: "" });
       await loadFarms();
     } catch (err: any) {
-      alert(err?.message || "Khong the tao nong trai.");
+      alert(err?.message || "Không thể tạo nông trại.");
     }
   };
 
   const handleEdit = async (farm: Farm) => {
-    const name = window.prompt("Ten nong trai", farm.name);
+    const name = window.prompt("Tên nông trại", farm.name);
     if (!name?.trim()) return;
-    const location = window.prompt("Dia diem", farm.location || "") || "";
+    const location = window.prompt("Địa điểm", farm.location || "") || "";
     const nextFarm = {
       ...farm,
       name: name.trim(),
@@ -85,12 +85,12 @@ export default function Farms() {
       });
       await loadFarms();
     } catch (err: any) {
-      alert(err?.message || "Khong the cap nhat nong trai.");
+      alert(err?.message || "Không thể cập nhật nông trại.");
     }
   };
 
   const handleDelete = async (farm: Farm) => {
-    if (!window.confirm(`Xoa nong trai "${farm.name}"?`)) return;
+    if (!window.confirm(`Xóa nông trại "${farm.name}"?`)) return;
     if (dataSource === "mock") {
       setFarms((current) => current.filter((item) => item.id !== farm.id));
       return;
@@ -100,7 +100,7 @@ export default function Farms() {
       await deleteFarm(farm.id);
       await loadFarms();
     } catch (err: any) {
-      alert(err?.message || "Khong the xoa nong trai.");
+      alert(err?.message || "Không thể xóa nông trại.");
     }
   };
 
@@ -108,15 +108,15 @@ export default function Farms() {
     <div className="space-y-5 max-w-[1440px] mx-auto">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Nong trai</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">{farms.length} nong trai {sourceLabel(dataSource)}</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Nông trại</h1>
+          <p className="text-sm text-on-surface-variant mt-0.5">{farms.length} nông trại {sourceLabel(dataSource)}</p>
         </div>
         <button onClick={handleCreate} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all">
-          <Plus className="w-4 h-4" /> Them nong trai
+          <Plus className="w-4 h-4" /> Thêm nông trại
         </button>
       </motion.div>
 
-      {isLoading && <p className="text-on-surface-variant">Dang tai nong trai...</p>}
+      {isLoading && <p className="text-on-surface-variant">Đang tải nông trại...</p>}
       {dataNotice && !isLoading && <p className="text-amber-700 text-sm font-semibold">{dataNotice}</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
@@ -136,7 +136,7 @@ export default function Farms() {
                 </div>
                 <div className="flex-1 min-w-0">
                   <h3 className="font-bold text-on-surface">{farm.name}</h3>
-                  <p className="text-sm text-on-surface-variant mt-1">{farm.location || "Chua co dia diem"}</p>
+                  <p className="text-sm text-on-surface-variant mt-1">{farm.location || "Chưa có địa điểm"}</p>
                   {farm.certification && <p className="text-xs text-primary font-bold mt-2">{farm.certification}</p>}
                 </div>
                 <div className="flex gap-1">

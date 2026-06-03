@@ -38,22 +38,22 @@ export interface AdminRouteConfig {
 }
 
 export const ADMIN_ROUTE_SECTIONS = [
-  { key: "overview", label: "Tong quan" },
-  { key: "management", label: "Quan ly" },
+  { key: "overview", label: "Tổng quan" },
+  { key: "management", label: "Quản lý" },
   { key: "marketing", label: "Marketing" },
-  { key: "system", label: "He thong" },
+  { key: "system", label: "Hệ thống" },
 ] as const;
 
 export const ADMIN_ROUTES: AdminRouteConfig[] = [
   { key: "dashboard", index: true, to: "/admin", label: "Dashboard", group: "overview", icon: LayoutDashboard, element: <Dashboard /> },
-  { key: "orders", path: "orders", to: "/admin/orders", label: "Don hang", group: "management", icon: ShoppingCart, element: <Orders />, badge: 5 },
-  { key: "products", path: "products", to: "/admin/products", label: "San pham", group: "management", icon: Package, element: <Products /> },
-  { key: "users", path: "users", to: "/admin/users", label: "Nguoi dung", group: "management", icon: Users, element: <UsersPage /> },
-  { key: "categories", path: "categories", to: "/admin/categories", label: "Danh muc", group: "management", icon: FolderTree, element: <Categories /> },
-  { key: "farms", path: "farms", to: "/admin/farms", label: "Nong trai", group: "management", icon: Leaf, element: <Farms /> },
-  { key: "inventory", path: "inventory", to: "/admin/inventory", label: "Ton kho", group: "management", icon: Warehouse, element: <Inventory /> },
-  { key: "allergens", path: "allergens", to: "/admin/allergens", label: "Di ung", group: "management", icon: AlertTriangle, element: <Allergens /> },
-  { key: "promotions", path: "promotions", to: "/admin/promotions", label: "Khuyen mai", group: "marketing", icon: Ticket, element: <Promotions /> },
-  { key: "reviews", path: "reviews", to: "/admin/reviews", label: "Danh gia", group: "marketing", icon: Star, element: <Reviews />, badge: 2 },
-  { key: "settings", path: "settings", to: "/admin/settings", label: "Cai dat", group: "system", icon: Settings, element: <SettingsPage /> },
+  { key: "orders", path: "orders", to: "/admin/orders", label: "Đơn hàng", group: "management", icon: ShoppingCart, element: <Orders />, badge: 5 },
+  { key: "products", path: "products", to: "/admin/products", label: "Sản phẩm", group: "management", icon: Package, element: <Products /> },
+  { key: "users", path: "users", to: "/admin/users", label: "Người dùng", group: "management", icon: Users, element: <UsersPage /> },
+  { key: "categories", path: "categories", to: "/admin/categories", label: "Danh mục", group: "management", icon: FolderTree, element: <Categories /> },
+  { key: "farms", path: "farms", to: "/admin/farms", label: "Nông trại", group: "management", icon: Leaf, element: <Farms /> },
+  { key: "inventory", path: "inventory", to: "/admin/inventory", label: "Tồn kho", group: "management", icon: Warehouse, element: <Inventory /> },
+  { key: "allergens", path: "allergens", to: "/admin/allergens", label: "Dị ứng", group: "management", icon: AlertTriangle, element: <Allergens /> },
+  { key: "promotions", path: "promotions", to: "/admin/promotions", label: "Khuyến mãi", group: "marketing", icon: Ticket, element: <Promotions /> },
+  { key: "reviews", path: "reviews", to: "/admin/reviews", label: "Đánh giá", group: "marketing", icon: Star, element: <Reviews />, badge: 2 },
+  { key: "settings", path: "settings", to: "/admin/settings", label: "Cài đặt", group: "system", icon: Settings, element: <SettingsPage /> },
 ];

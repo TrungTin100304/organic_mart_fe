@@ -35,7 +35,7 @@ export default function ProductDetail() {
         setRelated(productPage.content.filter((item) => item.id !== detail.id).slice(0, 4));
       })
       .catch((err: any) => {
-        if (mounted) setError(err?.message || "Khong the tai san pham.");
+        if (mounted) setError(err?.message || "Không thể tải sản phẩm.");
       })
       .finally(() => {
         if (mounted) setIsLoading(false);
@@ -55,24 +55,24 @@ export default function ProductDetail() {
     try {
       await addCartItem(product.id, quantity);
     } catch (err: any) {
-      alert(err?.message || "Khong the them vao gio hang.");
+      alert(err?.message || "Không thể thêm vào giỏ hàng.");
     } finally {
       setIsAdding(false);
     }
   };
 
   if (isLoading) {
-    return <div className="max-w-7xl mx-auto px-6 md:px-10 py-10 text-on-surface-variant">Dang tai san pham...</div>;
+    return <div className="max-w-7xl mx-auto px-6 md:px-10 py-10 text-on-surface-variant">Đang tải sản phẩm...</div>;
   }
 
   if (error || !product) {
-    return <div className="max-w-7xl mx-auto px-6 md:px-10 py-10 text-red-600 font-semibold">{error || "Khong tim thay san pham."}</div>;
+    return <div className="max-w-7xl mx-auto px-6 md:px-10 py-10 text-red-600 font-semibold">{error || "Không tìm thấy sản phẩm."}</div>;
   }
 
   return (
     <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
       <nav className="flex items-center gap-2 flex-wrap mb-6 md:mb-10 text-on-surface-variant text-sm">
-        <Link to="/" className="hover:text-primary transition-colors font-medium">Trang chu</Link>
+        <Link to="/" className="hover:text-primary transition-colors font-medium">Trang chủ</Link>
         <ChevronRight className="size-4" />
         <Link to="/shop" className="hover:text-primary transition-colors font-medium">{product.category}</Link>
         <ChevronRight className="size-4 flex-shrink-0" />
@@ -84,7 +84,7 @@ export default function ProductDetail() {
           <div className="flex-1 aspect-square md:aspect-auto md:h-[500px] rounded-2xl overflow-hidden bg-white border border-outline-variant relative group">
             <img src={product.image} alt={product.name} className="w-full h-full object-contain group-hover:scale-105 transition-transform duration-700" />
             {product.organic && (
-              <div className="absolute top-6 right-6 bg-primary-container text-on-primary-container px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest">HUU CO</div>
+              <div className="absolute top-6 right-6 bg-primary-container text-on-primary-container px-4 py-1.5 rounded-full text-xs font-bold uppercase tracking-widest">HỮU CƠ</div>
             )}
           </div>
           <div className="flex flex-row md:flex-col gap-4 overflow-x-auto pb-2 md:pb-0 custom-scrollbar">
@@ -104,13 +104,13 @@ export default function ProductDetail() {
                 <Star key={s} size={18} fill={s <= Math.round(product.rating || 5) ? "currentColor" : "none"} />
               ))}
             </div>
-            <span className="text-sm text-on-surface-variant font-medium">({product.reviews || 0} danh gia)</span>
+            <span className="text-sm text-on-surface-variant font-medium">({product.reviews || 0} đánh giá)</span>
           </div>
-          <div className="text-2xl md:text-3xl font-bold text-primary mb-6 md:mb-8">{product.price.toLocaleString()}d</div>
+          <div className="text-2xl md:text-3xl font-bold text-primary mb-6 md:mb-8">{product.price.toLocaleString()}đ</div>
 
           <div className="space-y-6 mb-8 md:mb-10">
             <p className="text-base md:text-lg text-on-surface-variant leading-relaxed font-medium">
-              {product.description || product.detailedDescription || "San pham dang duoc cap nhat mo ta."}
+              {product.description || product.detailedDescription || "Sản phẩm đang được cập nhật mô tả."}
             </p>
             {product.allergens && product.allergens.length > 0 ? (
               <div className="rounded-2xl border border-amber-200 bg-amber-50 p-4">
@@ -131,18 +131,18 @@ export default function ProductDetail() {
             <div className="p-5 bg-surface-container rounded-2xl border border-outline-variant flex flex-col sm:flex-row sm:items-center justify-between gap-4">
               <div className="flex items-center gap-3">
                 <CheckCircle2 className="text-primary size-5" />
-                <span className="text-sm font-bold opacity-80">Nguon goc minh bach</span>
+                <span className="text-sm font-bold opacity-80">Nguồn gốc minh bạch</span>
               </div>
               <div className="flex items-center gap-3">
                 <Truck className="text-primary size-5" />
-                <span className="text-sm font-bold opacity-80">Giao hang trong ngay</span>
+                <span className="text-sm font-bold opacity-80">Giao hàng trong ngày</span>
               </div>
             </div>
           </div>
 
           <div className="mt-auto space-y-6">
             <div className="flex items-center justify-between sm:justify-start gap-4">
-              <span className="text-sm font-bold uppercase tracking-widest opacity-60">So luong</span>
+              <span className="text-sm font-bold uppercase tracking-widest opacity-60">Số lượng</span>
               <div className="flex items-center border border-outline-variant rounded-xl bg-surface-container-low p-1">
                 <button onClick={() => setQuantity((value) => Math.max(1, value - 1))} className="p-3 hover:bg-surface-container rounded-lg transition-colors text-primary"><Minus size={16} /></button>
                 <span className="px-6 font-bold text-lg min-w-[60px] text-center">{quantity}</span>
@@ -156,7 +156,7 @@ export default function ProductDetail() {
                 className="w-full bg-primary text-white py-4 rounded-2xl font-bold shadow-lg hover:opacity-90 active:scale-95 transition-all flex items-center justify-center gap-2 disabled:opacity-50"
               >
                 <ShoppingCart size={20} />
-                {isAdding ? "DANG THEM" : "THEM VAO GIO"}
+                {isAdding ? "ĐANG THÊM" : "THÊM VÀO GIỎ"}
               </button>
               <button
                 onClick={async () => {
@@ -177,29 +177,29 @@ export default function ProductDetail() {
       </motion.div>
 
       <motion.div {...fadeIn} className="border-b border-outline-variant mb-10 flex overflow-x-auto gap-8">
-        <button className="px-4 py-4 text-sm font-bold border-b-2 border-primary text-primary whitespace-nowrap">Mo ta</button>
-        <button className="px-4 py-4 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap">Dinh duong</button>
-        <button className="px-4 py-4 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap">Di ung</button>
+        <button className="px-4 py-4 text-sm font-bold border-b-2 border-primary text-primary whitespace-nowrap">Mô tả</button>
+        <button className="px-4 py-4 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap">Dinh dưỡng</button>
+        <button className="px-4 py-4 text-sm font-bold text-on-surface-variant hover:text-primary transition-colors whitespace-nowrap">Dị ứng</button>
       </motion.div>
 
       <motion.div {...fadeIn} className="flex flex-col md:grid md:grid-cols-3 gap-8 md:gap-12 mb-20 md:mb-32">
         <div className="md:col-span-2 space-y-6 md:space-y-8">
           <p className="text-base md:text-lg text-on-surface-variant leading-relaxed font-medium">
-            {product.detailedDescription || product.description || "Thong tin chi tiet san pham dang duoc cap nhat."}
+            {product.detailedDescription || product.description || "Thông tin chi tiết sản phẩm đang được cập nhật."}
           </p>
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
             <div className="p-6 bg-white border border-outline-variant rounded-2xl">
-              <h4 className="font-bold text-on-surface mb-2 tracking-wide uppercase text-xs opacity-50">Danh muc</h4>
+              <h4 className="font-bold text-on-surface mb-2 tracking-wide uppercase text-xs opacity-50">Danh mục</h4>
               <p className="text-base font-semibold">{product.category}</p>
             </div>
             <div className="p-6 bg-white border border-outline-variant rounded-2xl">
-              <h4 className="font-bold text-on-surface mb-2 tracking-wide uppercase text-xs opacity-50">Bao quan</h4>
-              <p className="text-base font-semibold">{product.storageInstructions || "Theo huong dan tren bao bi"}</p>
+              <h4 className="font-bold text-on-surface mb-2 tracking-wide uppercase text-xs opacity-50">Bảo quản</h4>
+              <p className="text-base font-semibold">{product.storageInstructions || "Theo hướng dẫn trên bao bì"}</p>
             </div>
           </div>
         </div>
         <div className="bg-surface-container-low p-8 rounded-3xl h-fit border border-outline-variant">
-          <h3 className="text-xl font-bold text-primary mb-6">Canh bao di ung</h3>
+          <h3 className="text-xl font-bold text-primary mb-6">Cảnh báo dị ứng</h3>
           {product.allergens && product.allergens.length > 0 ? (
             <ul className="space-y-3">
               {product.allergens.map((allergen) => (
@@ -210,14 +210,14 @@ export default function ProductDetail() {
               ))}
             </ul>
           ) : (
-            <p className="text-sm font-medium text-on-surface-variant">Chua co thong tin di ung cho san pham nay.</p>
+            <p className="text-sm font-medium text-on-surface-variant">Chưa có thông tin dị ứng cho sản phẩm này.</p>
           )}
         </div>
       </motion.div>
 
       {related.length > 0 && (
         <section className="mb-20">
-          <h2 className="text-2xl font-bold text-primary mb-6">San pham lien quan</h2>
+          <h2 className="text-2xl font-bold text-primary mb-6">Sản phẩm liên quan</h2>
           <div className="grid grid-cols-2 md:grid-cols-4 gap-6">
             {related.map((item) => <ProductCard key={item.id} product={item} />)}
           </div>

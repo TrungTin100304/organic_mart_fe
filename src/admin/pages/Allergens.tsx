@@ -21,9 +21,9 @@ export default function Allergens() {
       const result = await loadAdminDataWithFallback(getAllAllergens, () => ADMIN_ALLERGENS);
       setAllergens(result.data);
       setDataSource(result.source);
-      setDataNotice(result.error || (result.source === "mock" ? "Dang hien thi du lieu mau." : ""));
+      setDataNotice(result.error || (result.source === "mock" ? "Đang hiển thị dữ liệu mẫu." : ""));
     } catch (err: any) {
-      setError(err?.message || "Khong the tai chat gay di ung.");
+      setError(err?.message || "Không thể tải chất gây dị ứng.");
     } finally {
       setIsLoading(false);
     }
@@ -34,7 +34,7 @@ export default function Allergens() {
   }, []);
 
   const handleCreate = async () => {
-    const name = window.prompt("Ten chat gay di ung");
+    const name = window.prompt("Tên chất gây dị ứng");
     if (!name?.trim()) return;
     if (dataSource === "mock") {
       setAllergens((current) => [{ id: Date.now(), name: name.trim() }, ...current]);
@@ -45,7 +45,7 @@ export default function Allergens() {
       await createAllergen(name.trim());
       await loadAllergens();
     } catch (err: any) {
-      alert(err?.message || "Khong the tao chat gay di ung.");
+      alert(err?.message || "Không thể tạo chất gây dị ứng.");
     }
   };
 
@@ -53,15 +53,15 @@ export default function Allergens() {
     <div className="space-y-5 max-w-[1440px] mx-auto">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Chat gay di ung</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">{allergens.length} muc {sourceLabel(dataSource)}</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Chất gây dị ứng</h1>
+          <p className="text-sm text-on-surface-variant mt-0.5">{allergens.length} mục {sourceLabel(dataSource)}</p>
         </div>
         <button onClick={handleCreate} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all">
-          <Plus className="w-4 h-4" /> Them moi
+          <Plus className="w-4 h-4" /> Thêm mới
         </button>
       </motion.div>
 
-      {isLoading && <p className="text-on-surface-variant">Dang tai chat gay di ung...</p>}
+      {isLoading && <p className="text-on-surface-variant">Đang tải chất gây dị ứng...</p>}
       {dataNotice && !isLoading && <p className="text-amber-700 text-sm font-semibold">{dataNotice}</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 

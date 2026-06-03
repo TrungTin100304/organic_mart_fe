@@ -41,7 +41,7 @@ export default function Checkout() {
         if (defaultAddress?.id) setSelectedAddressId(String(defaultAddress.id));
       })
       .catch((err: any) => {
-        if (mounted) setError(err?.message || "Khong the tai thong tin thanh toan.");
+        if (mounted) setError(err?.message || "Không thể tải thông tin thanh toán.");
       })
       .finally(() => {
         if (mounted) setIsLoading(false);
@@ -63,14 +63,14 @@ export default function Checkout() {
   return (
     <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
       <motion.nav {...fadeIn} className="flex items-center gap-2 mb-6 md:mb-10 text-on-surface-variant text-sm font-medium">
-        <Link to="/cart" className="hover:text-primary transition-colors">Gio hang</Link>
+        <Link to="/cart" className="hover:text-primary transition-colors">Giỏ hàng</Link>
         <ChevronRight className="size-4" />
-        <span className="text-primary font-bold">Thanh toan</span>
+        <span className="text-primary font-bold">Thanh toán</span>
         <ChevronRight className="size-4" />
-        <span className="opacity-50">Xac nhan</span>
+        <span className="opacity-50">Xác nhận</span>
       </motion.nav>
 
-      {isLoading && <p className="text-on-surface-variant">Dang tai thong tin thanh toan...</p>}
+      {isLoading && <p className="text-on-surface-variant">Đang tải thông tin thanh toán...</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
       {!isLoading && !error && (
@@ -80,7 +80,7 @@ export default function Checkout() {
               <div className="absolute top-0 left-0 w-1.5 h-full bg-primary" />
               <h2 className="text-xl md:text-2xl font-bold mb-6 md:mb-8 flex items-center gap-3 text-primary tracking-tight">
                 <MapPin className="size-6" />
-                Thong tin giao hang
+                Thông tin giao hàng
               </h2>
 
               {addresses.length > 0 ? (
@@ -109,21 +109,21 @@ export default function Checkout() {
               ) : (
                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                   <div className="md:col-span-2">
-                    <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 ml-1">Ho va ten</label>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 ml-1">Họ và tên</label>
                     <div className="relative">
                       <User className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-outline" />
                       <input readOnly value={user?.fullName || ""} className="w-full h-14 pl-12 pr-4 rounded-xl border border-outline-variant bg-surface-container-lowest font-medium" type="text" />
                     </div>
                   </div>
                   <div>
-                    <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 ml-1">So dien thoai</label>
+                    <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 ml-1">Số điện thoại</label>
                     <div className="relative">
                       <Phone className="absolute left-4 top-1/2 -translate-y-1/2 size-4 text-outline" />
                       <input readOnly value={user?.phone || ""} className="w-full h-14 pl-12 pr-4 rounded-xl border border-outline-variant bg-surface-container-lowest font-medium" type="tel" />
                     </div>
                   </div>
                   <div className="md:col-span-2">
-                    <Link to="/account" className="text-primary font-bold hover:underline">Them dia chi giao hang trong tai khoan</Link>
+                    <Link to="/account" className="text-primary font-bold hover:underline">Thêm địa chỉ giao hàng trong tài khoản</Link>
                   </div>
                 </div>
               )}
@@ -133,24 +133,24 @@ export default function Checkout() {
               <div className="absolute top-0 left-0 w-1.5 h-full bg-primary/40" />
               <h2 className="text-xl md:text-2xl font-bold mb-6 md:mb-8 flex items-center gap-3 text-primary tracking-tight">
                 <Truck className="size-6" />
-                Phuong thuc van chuyen
+                Phương thức vận chuyển
               </h2>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
                 <label className={`relative flex items-center p-4 md:p-6 border-2 rounded-2xl cursor-pointer transition-all group ${shippingFee === 20000 ? "border-primary bg-primary-container/5 ring-1 ring-primary/20" : "border-outline-variant"}`}>
                   <input checked={shippingFee === 20000} onChange={() => setShippingFee(20000)} className="size-5 text-primary border-outline-variant focus:ring-primary" name="shipping" type="radio" />
                   <div className="ml-4 md:ml-5">
-                    <span className="block font-bold text-on-surface">Giao hang tieu chuan</span>
-                    <span className="text-xs font-medium text-on-surface-variant">3-5 ngay lam viec</span>
+                    <span className="block font-bold text-on-surface">Giao hàng tiêu chuẩn</span>
+                    <span className="text-xs font-medium text-on-surface-variant">3-5 ngày làm việc</span>
                   </div>
-                  <span className="ml-auto font-bold text-primary text-sm md:text-base">20.000d</span>
+                  <span className="ml-auto font-bold text-primary text-sm md:text-base">20.000đ</span>
                 </label>
                 <label className={`relative flex items-center p-4 md:p-6 border-2 rounded-2xl cursor-pointer transition-all group ${shippingFee === 50000 ? "border-primary bg-primary-container/5 ring-1 ring-primary/20" : "border-outline-variant"}`}>
                   <input checked={shippingFee === 50000} onChange={() => setShippingFee(50000)} className="size-5 text-primary border-outline-variant focus:ring-primary" name="shipping" type="radio" />
                   <div className="ml-4 md:ml-5">
-                    <span className="block font-bold text-on-surface">Giao hang hoa toc</span>
-                    <span className="text-xs font-medium text-on-surface-variant">Nhan hang trong ngay</span>
+                    <span className="block font-bold text-on-surface">Giao hàng hỏa tốc</span>
+                    <span className="text-xs font-medium text-on-surface-variant">Nhận hàng trong ngày</span>
                   </div>
-                  <span className="ml-auto font-bold text-sm md:text-base">50.000d</span>
+                  <span className="ml-auto font-bold text-sm md:text-base">50.000đ</span>
                 </label>
               </div>
             </motion.section>
@@ -159,11 +159,11 @@ export default function Checkout() {
               <div className="absolute top-0 left-0 w-1.5 h-full bg-primary/20" />
               <h2 className="text-xl md:text-2xl font-bold mb-6 md:mb-8 flex items-center gap-3 text-primary tracking-tight">
                 <CreditCard className="size-6" />
-                Phuong thuc thanh toan
+                Phương thức thanh toán
               </h2>
               <label className="flex items-center p-4 md:p-5 border border-primary rounded-2xl cursor-pointer bg-primary-container/5 transition-all group">
                 <input defaultChecked className="size-5 text-primary border-outline-variant focus:ring-primary" name="payment" type="radio" value="COD" />
-                <span className="ml-4 md:ml-5 font-bold text-on-surface text-sm md:text-base">Thanh toan khi nhan hang (COD)</span>
+                <span className="ml-4 md:ml-5 font-bold text-on-surface text-sm md:text-base">Thanh toán khi nhận hàng (COD)</span>
               </label>
             </motion.section>
           </motion.div>
@@ -172,8 +172,8 @@ export default function Checkout() {
             <div className="sticky top-24 space-y-6 md:space-y-8">
               <div className="bg-white p-6 md:p-10 rounded-3xl border border-outline-variant shadow-xl ring-1 ring-white/50">
                 <h2 className="text-xl md:text-2xl font-bold mb-6 md:mb-8 flex items-center justify-between tracking-tight">
-                  Tom tat don hang
-                  <span className="text-xs font-bold uppercase tracking-widest opacity-40">{cart?.distinctItemCount || 0} san pham</span>
+                  Tóm tắt đơn hàng
+                  <span className="text-xs font-bold uppercase tracking-widest opacity-40">{cart?.distinctItemCount || 0} sản phẩm</span>
                 </h2>
 
                 <div className="divide-y divide-outline-variant/30 max-h-[320px] overflow-y-auto pr-2 mb-6 md:mb-8 custom-scrollbar">
@@ -185,7 +185,7 @@ export default function Checkout() {
                       <div className="flex-grow">
                         <h4 className="font-bold text-on-surface text-sm line-clamp-1">{item.productName}</h4>
                         <p className="text-xs font-medium text-on-surface-variant opacity-70 mt-1">{item.quantity} {item.unit || ""}</p>
-                        <p className="font-bold text-primary mt-2">{item.subtotal.toLocaleString()}d</p>
+                        <p className="font-bold text-primary mt-2">{item.subtotal.toLocaleString()}đ</p>
                       </div>
                     </div>
                   ))}
@@ -193,35 +193,35 @@ export default function Checkout() {
 
                 <div className="space-y-4 pt-4 md:pt-6 border-t border-outline-variant/50">
                   <div className="flex justify-between text-sm font-medium text-on-surface-variant">
-                    <span>Tam tinh</span>
-                    <span className="font-bold">{subtotal.toLocaleString()}d</span>
+                    <span>Tạm tính</span>
+                    <span className="font-bold">{subtotal.toLocaleString()}đ</span>
                   </div>
                   <div className="flex justify-between text-sm font-medium text-on-surface-variant">
-                    <span>Phi van chuyen</span>
-                    <span className="font-bold">{shippingFee.toLocaleString()}d</span>
+                    <span>Phí vận chuyển</span>
+                    <span className="font-bold">{shippingFee.toLocaleString()}đ</span>
                   </div>
                   <div className="flex justify-between pt-4 items-end">
-                    <span className="text-xl md:text-2xl font-bold tracking-tight">Tong cong</span>
-                    <span className="text-2xl md:text-3xl font-bold text-primary">{total.toLocaleString()}d</span>
+                    <span className="text-xl md:text-2xl font-bold tracking-tight">Tổng cộng</span>
+                    <span className="text-2xl md:text-3xl font-bold text-primary">{total.toLocaleString()}đ</span>
                   </div>
                 </div>
 
                 <button
                   disabled
-                  title="BE chua co endpoint tao don hang"
+                  title="BE chưa có endpoint tạo đơn hàng"
                   className="w-full bg-surface-container text-on-surface-variant h-16 rounded-2xl font-bold text-lg mt-10 flex items-center justify-center gap-3 cursor-not-allowed"
                 >
-                  Chua co API dat hang
+                  Chưa có API đặt hàng
                   <Lock size={20} />
                 </button>
 
                 {!selectedAddress && (
-                  <p className="mt-4 text-sm text-red-600 font-semibold">Can them dia chi truoc khi dat hang.</p>
+                  <p className="mt-4 text-sm text-red-600 font-semibold">Cần thêm địa chỉ trước khi đặt hàng.</p>
                 )}
 
                 <div className="text-center mt-6 flex items-center justify-center gap-2 text-[10px] font-bold uppercase tracking-widest text-on-surface-variant/60">
                   <ShieldCheck size={14} className="text-primary" />
-                  Du lieu gio hang lay tu backend
+                  Dữ liệu giỏ hàng lấy từ backend
                 </div>
               </div>
             </div>

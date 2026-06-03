@@ -78,7 +78,7 @@ export default function ProductFormModal({
           >
             <form onSubmit={handleSubmit} className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold">{product ? "Chinh sua san pham" : "Them san pham moi"}</h2>
+                <h2 className="text-lg font-bold">{product ? "Chỉnh sửa sản phẩm" : "Thêm sản phẩm mới"}</h2>
                 <button type="button" onClick={onClose} className="p-2 rounded-xl hover:bg-surface-container">
                   <X className="w-5 h-5" />
                 </button>
@@ -90,8 +90,8 @@ export default function ProductFormModal({
                   className="w-full border-2 border-dashed border-outline-variant/40 rounded-2xl p-8 text-center hover:border-primary/40 transition-colors cursor-pointer"
                 >
                   <Upload className="w-8 h-8 text-on-surface-variant/40 mx-auto mb-2" />
-                  <p className="text-sm text-on-surface-variant">{imageFile ? imageFile.name : "Click de tai anh san pham"}</p>
-                  <p className="text-xs text-on-surface-variant/50 mt-1">PNG, JPG toi da 5MB</p>
+                  <p className="text-sm text-on-surface-variant">{imageFile ? imageFile.name : "Click để tải ảnh sản phẩm"}</p>
+                  <p className="text-xs text-on-surface-variant/50 mt-1">PNG, JPG tối đa 5MB</p>
                   <input
                     ref={fileInputRef}
                     type="file"
@@ -102,17 +102,17 @@ export default function ProductFormModal({
                 </button>
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
-                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Ten san pham</label>
+                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Tên sản phẩm</label>
                     <input
                       required
                       value={form.name}
                       onChange={(event) => setForm({ ...form, name: event.target.value })}
                       className="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm bg-surface-container-lowest outline-none focus:border-primary/40 focus:ring-1 focus:ring-primary/20 transition-all"
-                      placeholder="VD: Rau cai organic 300gr"
+                      placeholder="VD: Rau cải organic 300gr"
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Danh muc</label>
+                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Danh mục</label>
                     <select
                       required
                       value={form.categoryId}
@@ -127,7 +127,7 @@ export default function ProductFormModal({
                     </select>
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Gia (d)</label>
+                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Giá (đ)</label>
                     <input
                       required
                       type="number"
@@ -137,7 +137,7 @@ export default function ProductFormModal({
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Don vi</label>
+                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Đơn vị</label>
                     <input
                       value={form.unit}
                       onChange={(event) => setForm({ ...form, unit: event.target.value })}
@@ -145,18 +145,18 @@ export default function ProductFormModal({
                     />
                   </div>
                   <div>
-                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Trang thai</label>
+                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Trạng thái</label>
                     <select
                       value={form.status}
                       onChange={(event) => setForm({ ...form, status: event.target.value })}
                       className="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm bg-surface-container-lowest outline-none focus:border-primary/40 transition-all"
                     >
-                      <option value="active">Dang ban</option>
-                      <option value="draft">Nhap</option>
+                      <option value="active">Đang bán</option>
+                      <option value="draft">Nháp</option>
                     </select>
                   </div>
                   <div className="col-span-2">
-                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Mo ta ngan</label>
+                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Mô tả ngắn</label>
                     <textarea
                       value={form.description}
                       onChange={(event) => setForm({ ...form, description: event.target.value })}
@@ -165,7 +165,7 @@ export default function ProductFormModal({
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Huong dan bao quan</label>
+                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Hướng dẫn bảo quản</label>
                     <input
                       value={form.storageInstructions}
                       onChange={(event) => setForm({ ...form, storageInstructions: event.target.value })}
@@ -173,7 +173,7 @@ export default function ProductFormModal({
                     />
                   </div>
                   <div className="col-span-2">
-                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Mo ta chi tiet</label>
+                    <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Mô tả chi tiết</label>
                     <textarea
                       value={form.detailedDescription}
                       onChange={(event) => setForm({ ...form, detailedDescription: event.target.value })}
@@ -183,9 +183,9 @@ export default function ProductFormModal({
                   </div>
                 </div>
                 <div className="flex gap-3 pt-2">
-                  <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-outline-variant/30 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-surface-container transition-colors">Huy</button>
+                  <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-outline-variant/30 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-surface-container transition-colors">Hủy</button>
                   <button disabled={isSubmitting} type="submit" className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all disabled:opacity-50">
-                    {isSubmitting ? "Dang luu..." : product ? "Cap nhat" : "Tao san pham"}
+                    {isSubmitting ? "Đang lưu..." : product ? "Cập nhật" : "Tạo sản phẩm"}
                   </button>
                 </div>
               </div>

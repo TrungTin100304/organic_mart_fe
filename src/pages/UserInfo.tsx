@@ -69,6 +69,20 @@ const UserInfoPage: React.FC = () => {
   };
 
   useEffect(() => {
+    if (!localStorage.getItem("accessToken")) {
+      navigate('/login');
+    }
+  }, [navigate]);
+
+  useEffect(() => {
+    if (error) {
+      localStorage.removeItem("accessToken");
+      localStorage.removeItem("refreshToken");
+      navigate('/login');
+    }
+  }, [error, navigate]);
+
+  useEffect(() => {
     if (user) {
       loadAddresses();
       loadAllergens(user.id);
@@ -293,6 +307,10 @@ const UserInfoPage: React.FC = () => {
     }, 1000);
   };
 
+  if (!localStorage.getItem("accessToken") || error) {
+    return null;
+  }
+
   if (isLoading) {
     return (
       <div className="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop font-sans">
@@ -304,26 +322,7 @@ const UserInfoPage: React.FC = () => {
     );
   }
 
-  if (error) {
-    return (
-      <div className="pt-32 pb-24 max-w-md mx-auto px-6 text-center space-y-6 font-sans">
-        <div className="w-16 h-16 bg-red-50 text-red-600 rounded-full flex items-center justify-center mx-auto shadow-inner">
-          <span className="material-symbols-outlined text-[32px]">warning</span>
-        </div>
-        <div className="space-y-2">
-          <h3 className="text-headline-md font-bold text-on-surface">Đã xảy ra lỗi</h3>
-          <p className="text-on-surface-variant text-body-md leading-relaxed">{error}</p>
-        </div>
-        <button
-          onClick={() => navigate('/login')}
-          className="w-full py-3 bg-primary text-white rounded-xl font-bold hover:bg-primary/95 transition-all shadow-md active:scale-95 cursor-pointer"
-        >
-          Đăng nhập ngay
-        </button>
-      </div>
-    );
-  }
-  if (!user) return <div className="pt-24 max-w-container-max mx-auto px-margin-mobile md:px-margin-desktop font-sans">Không tìm thấy người dùng.</div>;
+  if (!user) return null;
 
   const recentOrders = user.recentOrders || [];
 

@@ -314,7 +314,11 @@ test("catalog and admin services call the expected backend endpoints", async () 
       expectedRoute: "/products/3",
       expectedMethod: "PUT",
       response: productResponse,
-      assertRequest: (request) => assert.equal((request.init.body as FormData).get("allergenIds"), "1"),
+      assertRequest: (request) => {
+        const body = request.init.body as FormData;
+        assert.equal(body.get("allergenIds"), "1");
+        assert.equal(body.get("active"), "true");
+      },
     },
     { name: "delete product", call: () => productService.deleteProduct(3), expectedRoute: "/products/3", expectedMethod: "DELETE", response: null },
     { name: "product categories", call: () => categoryService.getProductCategories(), expectedRoute: "/product-categories", response: [categoryResponse] },

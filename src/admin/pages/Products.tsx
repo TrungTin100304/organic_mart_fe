@@ -11,9 +11,9 @@ import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "..
 import { getMockAdminProducts, getMockInventoryBatches, getMockProductCategories } from "../utils/mockAdapters";
 
 const statusMap: Record<AdminProduct["status"], { label: string; cls: string }> = {
-  active: { label: "Dang ban", cls: "bg-emerald-50 text-emerald-700" },
-  draft: { label: "Nhap", cls: "bg-surface-container-high text-on-surface-variant" },
-  out_of_stock: { label: "Het hang", cls: "bg-red-50 text-red-600" },
+  active: { label: "Đang bán", cls: "bg-emerald-50 text-emerald-700" },
+  draft: { label: "Nháp", cls: "bg-surface-container-high text-on-surface-variant" },
+  out_of_stock: { label: "Hết hàng", cls: "bg-red-50 text-red-600" },
 };
 
 const toAdminProduct = (product: Product, batches: InventoryBatch[]): AdminProduct => {
@@ -79,10 +79,10 @@ export default function Products() {
       setDataSource(nextSource);
       setDataNotice(
         [productResult.error, categoryResult.error].filter(Boolean).join(" ") ||
-          (nextSource === "mock" ? "Dang hien thi du lieu mau." : ""),
+          (nextSource === "mock" ? "Đang hiển thị dữ liệu mẫu." : ""),
       );
     } catch (err: any) {
-      setError(err?.message || "Khong the tai danh sach san pham.");
+      setError(err?.message || "Không thể tải danh sách sản phẩm.");
     } finally {
       setIsLoading(false);
     }
@@ -111,7 +111,7 @@ export default function Products() {
         id: editProduct?.id || `mock-${Date.now()}`,
         name: values.name.trim(),
         sku: editProduct?.sku || `MOCK-${Date.now()}`,
-        category: category?.name || editProduct?.category || "Chua phan loai",
+        category: category?.name || editProduct?.category || "Chưa phân loại",
         categoryId: String(values.categoryId),
         price: Number(values.price || 0),
         stock: editProduct?.stock || 0,
@@ -144,14 +144,14 @@ export default function Products() {
       setShowForm(false);
       await loadData();
     } catch (err: any) {
-      alert(err?.message || "Khong the luu san pham.");
+      alert(err?.message || "Không thể lưu sản phẩm.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
   const handleDelete = async (product: AdminProduct) => {
-    if (!window.confirm(`Xoa san pham "${product.name}"?`)) return;
+    if (!window.confirm(`Xóa sản phẩm "${product.name}"?`)) return;
     if (dataSource === "mock") {
       setProducts((current) => current.filter((item) => item.id !== product.id));
       return;
@@ -161,7 +161,7 @@ export default function Products() {
       await deleteProduct(product.id);
       await loadData();
     } catch (err: any) {
-      alert(err?.message || "Khong the xoa san pham.");
+      alert(err?.message || "Không thể xóa sản phẩm.");
     }
   };
 
@@ -169,21 +169,21 @@ export default function Products() {
     <div className="space-y-5 max-w-[1440px] mx-auto">
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
-          <h1 className="text-xl lg:text-2xl font-bold text-on-surface">San pham</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">{products.length} san pham {sourceLabel(dataSource)}</p>
+          <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Sản phẩm</h1>
+          <p className="text-sm text-on-surface-variant mt-0.5">{products.length} sản phẩm {sourceLabel(dataSource)}</p>
         </div>
         <button onClick={() => { setEditProduct(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all self-start">
-          <Plus className="w-4 h-4" /> Them san pham
+          <Plus className="w-4 h-4" /> Thêm sản phẩm
         </button>
       </motion.div>
 
       <div className="flex flex-col sm:flex-row gap-3">
         <div className="flex items-center bg-surface-container-lowest border border-outline-variant/30 rounded-xl px-3 py-2 flex-1 max-w-md focus-within:border-primary/40 transition-colors">
           <Search className="w-4 h-4 text-on-surface-variant/50" />
-          <input value={search} onChange={(event) => setSearch(event.target.value)} className="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder:text-on-surface-variant/40" placeholder="Tim theo ten, SKU..." />
+          <input value={search} onChange={(event) => setSearch(event.target.value)} className="bg-transparent border-none outline-none text-sm ml-2 w-full placeholder:text-on-surface-variant/40" placeholder="Tìm theo tên, SKU..." />
         </div>
         <div className="flex gap-2 flex-wrap">
-          {[{ value: "all", label: "Tat ca" }, ...categories.map((category) => ({ value: category.name, label: category.name }))].map((filter) => (
+          {[{ value: "all", label: "Tất cả" }, ...categories.map((category) => ({ value: category.name, label: category.name }))].map((filter) => (
             <button
               key={filter.value}
               onClick={() => setCatFilter(filter.value)}
@@ -195,7 +195,7 @@ export default function Products() {
         </div>
       </div>
 
-      {isLoading && <p className="text-on-surface-variant">Dang tai san pham...</p>}
+      {isLoading && <p className="text-on-surface-variant">Đang tải sản phẩm...</p>}
       {dataNotice && !isLoading && <p className="text-amber-700 text-sm font-semibold">{dataNotice}</p>}
       {error && <p className="text-red-600 font-semibold">{error}</p>}
 
@@ -234,12 +234,12 @@ export default function Products() {
                   <p className="text-[11px] text-on-surface-variant font-medium mb-1">{product.sku} | {product.category}</p>
                   <h3 className="font-bold text-sm text-on-surface line-clamp-1 mb-2">{product.name}</h3>
                   <div className="flex items-baseline gap-2 mb-3">
-                    <span className="font-bold text-primary">{product.price.toLocaleString()}d</span>
+                    <span className="font-bold text-primary">{product.price.toLocaleString()}đ</span>
                     <span className="text-xs text-on-surface-variant">/{product.unit || "kg"}</span>
                   </div>
                   <div className="flex items-center justify-between">
                     <span className={`text-xs font-semibold ${product.stock <= 5 ? "text-red-600" : product.stock <= 15 ? "text-amber-600" : "text-on-surface-variant"}`}>
-                      Ton kho: {product.stock}
+                      Tồn kho: {product.stock}
                     </span>
                     <div className="flex gap-1">
                       <button onClick={() => { setEditProduct(product); setShowForm(true); }} className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-primary transition-colors">

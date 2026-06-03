@@ -4,8 +4,8 @@ import type { AdminOrder, AdminUser } from "../types";
 
 const roleMap: Record<AdminUser["role"], { label: string; cls: string }> = {
   admin: { label: "Admin", cls: "bg-primary/10 text-primary border-primary/20" },
-  staff: { label: "Nhan vien", cls: "bg-blue-50 text-blue-700 border-blue-200" },
-  customer: { label: "Khach hang", cls: "bg-surface-container-high text-on-surface-variant border-outline-variant/30" },
+  staff: { label: "Nhân viên", cls: "bg-blue-50 text-blue-700 border-blue-200" },
+  customer: { label: "Khách hàng", cls: "bg-surface-container-high text-on-surface-variant border-outline-variant/30" },
 };
 
 interface UserDetailDrawerProps {
@@ -29,7 +29,7 @@ export default function UserDetailDrawer({ orders, user, onClose }: UserDetailDr
           >
             <div className="p-6">
               <div className="flex items-center justify-between mb-6">
-                <h2 className="text-lg font-bold text-on-surface">Chi tiet nguoi dung</h2>
+                <h2 className="text-lg font-bold text-on-surface">Chi tiết người dùng</h2>
                 <button onClick={onClose} className="p-2 rounded-xl hover:bg-surface-container">
                   <X className="w-5 h-5" />
                 </button>
@@ -60,14 +60,14 @@ export default function UserDetailDrawer({ orders, user, onClose }: UserDetailDr
               <div className="grid grid-cols-2 gap-3 mb-6">
                 <div className="p-4 rounded-xl bg-surface-container-low text-center">
                   <p className="text-2xl font-bold text-primary">{user.totalOrders}</p>
-                  <p className="text-xs text-on-surface-variant mt-1">Don hang</p>
+                  <p className="text-xs text-on-surface-variant mt-1">Đơn hàng</p>
                 </div>
                 <div className="p-4 rounded-xl bg-surface-container-low text-center">
                   <p className="text-2xl font-bold text-primary">{(user.totalSpent / 1000).toFixed(0)}K₫</p>
-                  <p className="text-xs text-on-surface-variant mt-1">Tong chi tieu</p>
+                  <p className="text-xs text-on-surface-variant mt-1">Tổng chi tiêu</p>
                 </div>
               </div>
-              <h4 className="font-bold text-sm mb-3">Don hang gan day</h4>
+              <h4 className="font-bold text-sm mb-3">Đơn hàng gần đây</h4>
               <div className="space-y-2">
                 {orders.filter((order) => order.customerEmail === user.email).slice(0, 3).map((order) => (
                   <div key={order.id} className="flex items-center justify-between p-3 rounded-xl bg-surface-container-low">
