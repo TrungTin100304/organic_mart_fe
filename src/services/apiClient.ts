@@ -11,7 +11,7 @@ export interface ApiRequestOptions extends RequestInit {
   skipRefresh?: boolean;
 }
 
-const DEFAULT_API_BASE_URL = "http://localhost:8080/api/v1";
+const DEFAULT_API_BASE_URL = "https://organic-mart-be-1.onrender.com/api/v1";
 
 const getConfiguredBaseUrl = () => {
   const viteEnv = (import.meta as ImportMeta & { env?: Record<string, string | undefined> }).env;

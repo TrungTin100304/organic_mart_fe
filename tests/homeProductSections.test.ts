@@ -60,3 +60,22 @@ test("getHomeProductSections does not mutate the product array from state", () =
 
   assert.deepEqual(products.map((item) => item.id), originalOrder);
 });
+
+test("getHomeProductSections still shows deployed products when all are marked inactive", () => {
+  const products = [
+    product("1", "2026-05-01T00:00:00Z", { isActive: false }),
+    product("2", "2026-05-02T00:00:00Z", { isActive: false }),
+    product("3", "2026-05-03T00:00:00Z", { isActive: false }),
+  ];
+
+  const sections = getHomeProductSections(products, 2);
+
+  assert.deepEqual(
+    sections.newArrivals.map((item) => item.id),
+    ["3", "2"],
+  );
+  assert.deepEqual(
+    sections.favoriteProducts.map((item) => item.id),
+    ["1"],
+  );
+});
