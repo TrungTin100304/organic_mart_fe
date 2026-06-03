@@ -28,7 +28,12 @@ export default function Cart() {
     try {
       setCart(await getCurrentCart());
     } catch (err: any) {
-      setError(err?.message || "Khong the tai gio hang.");
+      const message = err?.message || "";
+      if (message.includes("read-only") || message.includes("read only")) {
+        setError("Hệ thống đang bảo trì. Vui lòng thử lại sau.");
+      } else {
+        setError(message || "Khong the tai gio hang.");
+      }
     } finally {
       setIsLoading(false);
     }
@@ -42,7 +47,12 @@ export default function Cart() {
     try {
       setCart(await action());
     } catch (err: any) {
-      setError(err?.message || "Khong the cap nhat gio hang.");
+      const message = err?.message || "";
+      if (message.includes("read-only") || message.includes("read only")) {
+        setError("Hệ thống đang bảo trì. Vui lòng thử lại sau.");
+      } else {
+        setError(message || "Khong the cap nhat gio hang.");
+      }
     }
   };
 
