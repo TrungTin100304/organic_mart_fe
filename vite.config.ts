@@ -5,6 +5,15 @@ import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
+  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'https://organic-mart-be-1.onrender.com';
+  const apiProxy = {
+    '/api/v1': {
+      target: apiProxyTarget,
+      changeOrigin: true,
+      secure: true,
+    },
+  };
+
   return {
     plugins: [react(), tailwindcss()],
     define: {
@@ -21,6 +30,10 @@ export default defineConfig(({mode}) => {
       hmr: process.env.DISABLE_HMR !== 'true',
       // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
+      proxy: apiProxy,
+    },
+    preview: {
+      proxy: apiProxy,
     },
   };
 });

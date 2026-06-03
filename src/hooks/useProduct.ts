@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import type { Product } from '@/types/product';
+import type { Product } from '@/types';
 import { getProductById } from '@/services/productService';
 
 export const useProduct = (id?: string | null) => {

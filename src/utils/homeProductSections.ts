@@ -20,8 +20,10 @@ const compareNewestProducts = (a: Product, b: Product) => {
 };
 
 export function getHomeProductSections(products: Product[], sectionSize = 6): HomeProductSections {
-  const orderedProducts = products
-    .filter((product) => product.isActive !== false)
+  const activeProducts = products.filter((product) => product.isActive !== false);
+  const displayProducts = activeProducts.length > 0 ? activeProducts : products;
+
+  const orderedProducts = displayProducts
     .slice()
     .sort(compareNewestProducts);
 

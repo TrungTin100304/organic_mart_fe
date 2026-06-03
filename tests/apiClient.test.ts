@@ -7,6 +7,10 @@ test("getApiBaseUrl removes trailing slashes and keeps the api version path", ()
   assert.equal(getApiBaseUrl("http://localhost:8080/api/v1/"), "http://localhost:8080/api/v1");
 });
 
+test("getApiBaseUrl defaults to the deployed backend api path", () => {
+  assert.equal(getApiBaseUrl(), "https://organic-mart-be-1.onrender.com/api/v1");
+});
+
 test("normalizeRole accepts backend ROLE_* values and legacy admin values", () => {
   assert.equal(normalizeRole("ROLE_ADMIN"), "ROLE_ADMIN");
   assert.equal(normalizeRole("ADMIN"), "ROLE_ADMIN");

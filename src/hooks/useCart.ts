@@ -1,6 +1,6 @@
 import { useState, useCallback } from 'react';
-import { addCartItem, getMyCart, updateCartItem, removeCartItem } from '@/services/cartService';
-import type { Cart } from '@/types/cart';
+import { addCartItem, decreaseCartItem, getCurrentCart, removeCartItem } from '@/services/cartService';
+import type { Cart } from '@/services/cartService';
 
 export const useCart = () => {
   const [cart, setCart] = useState<Cart | null>(null);
@@ -14,7 +14,7 @@ export const useCart = () => {
     setIsLoadingCart(true);
     setError(null);
     try {
-      const data = await getMyCart();
+      const data = await getCurrentCart();
       setCart(data);
     } catch (e: unknown) {
       const message = e instanceof Error ? e.message : 'Không thể lấy thông tin giỏ hàng';
@@ -38,7 +38,7 @@ export const useCart = () => {
     setError(null);
 
     try {
-      const data = await addCartItem({ productId, quantity });
+      const data = await addCartItem(productId, quantity);
       setCart(data); // Update cart state with newest cart data
       return data;
     } catch (e: unknown) {
@@ -60,7 +60,7 @@ export const useCart = () => {
     setError(null);
 
     try {
-      const data = await updateCartItem(itemId, quantity);
+      const data = await decreaseCartItem(itemId, quantity);
       setCart(data);
       return data;
     } catch (e: unknown) {
