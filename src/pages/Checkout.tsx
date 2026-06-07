@@ -1,11 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
-import { ChevronRight, Truck, CreditCard, MapPin, Phone, User, Lock, ShieldCheck } from "lucide-react";
+import { ChevronRight, Truck, CreditCard, MapPin, Phone, User, ShieldCheck } from "lucide-react";
 import { motion } from "motion/react";
 import type { Cart } from "../services/cartService";
-import { getCurrentCart } from "../services/cartService";
+import { clearCart, getCurrentCart, getCartItemImage } from "../services/cartService";
 import { getCurrentUser } from "../services/userService";
 import { getAllAddresses } from "../services/addressService";
+import { createOrder, getShipmentRates, type ShippingRate } from "../services/orderService";
 import type { Address, User as UserType } from "../types/user";
 
 const fadeIn = {
@@ -14,15 +15,23 @@ const fadeIn = {
   transition: { duration: 0.5 },
 };
 
+const DEFAULT_WEIGHT_KG = 1;
+
 export default function Checkout() {
   const navigate = useNavigate();
   const [cart, setCart] = useState<Cart | null>(null);
   const [user, setUser] = useState<UserType | null>(null);
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [selectedAddressId, setSelectedAddressId] = useState<string>("");
-  const [shippingFee, setShippingFee] = useState(20000);
+  const [shippingRates, setShippingRates] = useState<ShippingRate[]>([]);
+  const [selectedShippingProviderId, setSelectedShippingProviderId] = useState<number | null>(null);
+  const [shippingFee, setShippingFee] = useState(0);
+  const [note, setNote] = useState("");
   const [isLoading, setIsLoading] = useState(true);
+  const [isLoadingRates, setIsLoadingRates] = useState(false);
+  const [isSubmittingOrder, setIsSubmittingOrder] = useState(false);
   const [error, setError] = useState("");
+  const [shippingError, setShippingError] = useState("");
 
   useEffect(() => {
     if (!localStorage.getItem("accessToken")) {
@@ -40,8 +49,8 @@ export default function Checkout() {
         const defaultAddress = addressList.find((address) => address.isDefault) || addressList[0];
         if (defaultAddress?.id) setSelectedAddressId(String(defaultAddress.id));
       })
-      .catch((err: any) => {
-        if (mounted) setError(err?.message || "Không thể tải thông tin thanh toán.");
+      .catch((err: unknown) => {
+        if (mounted) setError(err instanceof Error ? err.message : "Không thể tải thông tin thanh toán.");
       })
       .finally(() => {
         if (mounted) setIsLoading(false);
@@ -57,8 +66,120 @@ export default function Checkout() {
     [addresses, selectedAddressId]
   );
 
+  useEffect(() => {
+    if (!selectedAddress) {
+      setShippingRates([]);
+      setSelectedShippingProviderId(null);
+      setShippingFee(0);
+      setShippingError("");
+      return;
+    }
+
+    const province = selectedAddress.city?.trim();
+    const district = selectedAddress.district?.trim();
+    const ward = selectedAddress.ward?.trim();
+
+    if (!province || !district || !ward) {
+      setShippingRates([]);
+      setSelectedShippingProviderId(null);
+      setShippingFee(0);
+      setShippingError("Địa chỉ cần có đầy đủ tỉnh/thành, quận/huyện và phường/xã để tính phí ship.");
+      return;
+    }
+
+    let mounted = true;
+    setIsLoadingRates(true);
+    setShippingError("");
+
+    getShipmentRates({
+      province,
+      district,
+      ward,
+      weightKg: DEFAULT_WEIGHT_KG,
+    })
+      .then((rates) => {
+        if (!mounted) return;
+
+        setShippingRates(rates);
+
+        if (rates.length === 0) {
+          setSelectedShippingProviderId(null);
+          setShippingFee(0);
+          setShippingError("Không có đơn vị vận chuyển khả dụng cho địa chỉ này.");
+          return;
+        }
+
+        setSelectedShippingProviderId((currentProviderId) => {
+          const matchedRate = rates.find((rate) => rate.providerId === currentProviderId) || rates[0];
+          setShippingFee(matchedRate.fee);
+          return matchedRate.providerId;
+        });
+      })
+      .catch((err: unknown) => {
+        if (!mounted) return;
+        setShippingRates([]);
+        setSelectedShippingProviderId(null);
+        setShippingFee(0);
+        setShippingError(err instanceof Error ? err.message : "Không thể tính phí vận chuyển.");
+      })
+      .finally(() => {
+        if (mounted) setIsLoadingRates(false);
+      });
+
+    return () => {
+      mounted = false;
+    };
+  }, [selectedAddress]);
+
   const subtotal = cart?.totalPrice || 0;
   const total = subtotal + shippingFee;
+
+  const handlePlaceOrder = async () => {
+    if (!selectedAddress?.id) {
+      setError("Vui lòng chọn địa chỉ giao hàng.");
+      return;
+    }
+
+    if (!selectedShippingProviderId) {
+      setError("Vui lòng chọn đơn vị vận chuyển.");
+      return;
+    }
+
+    if (!cart?.items?.length) {
+      setError("Giỏ hàng đang trống.");
+      return;
+    }
+
+    try {
+      setIsSubmittingOrder(true);
+      setError("");
+
+      const order = await createOrder({
+        addressId: Number(selectedAddress.id),
+        shippingProviderId: selectedShippingProviderId,
+        shippingFee,
+        promotionCode: "",
+        note: note.trim(),
+        items: cart.items.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+        })),
+      });
+
+      await clearCart();
+      navigate(`/tracking/${order.orderCode}`, {
+        state: {
+          orderCreated: true,
+          orderId: order.id,
+          orderCode: order.orderCode,
+        },
+      });
+    } catch (err: unknown) {
+      setError(err instanceof Error ? err.message : "Không thể tạo đơn hàng.");
+    } finally {
+      setIsSubmittingOrder(false);
+    }
+  };
 
   return (
     <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
@@ -71,7 +192,7 @@ export default function Checkout() {
       </motion.nav>
 
       {isLoading && <p className="text-on-surface-variant">Đang tải thông tin thanh toán...</p>}
-      {error && <p className="text-red-600 font-semibold">{error}</p>}
+      {error && <p className="text-red-600 font-semibold mb-4">{error}</p>}
 
       {!isLoading && !error && (
         <div className="grid grid-cols-1 lg:grid-cols-12 gap-10 items-start">
@@ -91,7 +212,10 @@ export default function Checkout() {
                         type="radio"
                         name="address"
                         checked={String(address.id) === selectedAddressId}
-                        onChange={() => setSelectedAddressId(String(address.id))}
+                        onChange={() => {
+                          setSelectedAddressId(String(address.id));
+                          setError("");
+                        }}
                         className="mt-1"
                       />
                       <div>
@@ -135,23 +259,43 @@ export default function Checkout() {
                 <Truck className="size-6" />
                 Phương thức vận chuyển
               </h2>
+
+              {shippingError && <p className="mb-4 text-sm text-red-600 font-semibold">{shippingError}</p>}
+
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4 md:gap-6">
-                <label className={`relative flex items-center p-4 md:p-6 border-2 rounded-2xl cursor-pointer transition-all group ${shippingFee === 20000 ? "border-primary bg-primary-container/5 ring-1 ring-primary/20" : "border-outline-variant"}`}>
-                  <input checked={shippingFee === 20000} onChange={() => setShippingFee(20000)} className="size-5 text-primary border-outline-variant focus:ring-primary" name="shipping" type="radio" />
-                  <div className="ml-4 md:ml-5">
-                    <span className="block font-bold text-on-surface">Giao hàng tiêu chuẩn</span>
-                    <span className="text-xs font-medium text-on-surface-variant">3-5 ngày làm việc</span>
-                  </div>
-                  <span className="ml-auto font-bold text-primary text-sm md:text-base">20.000đ</span>
-                </label>
-                <label className={`relative flex items-center p-4 md:p-6 border-2 rounded-2xl cursor-pointer transition-all group ${shippingFee === 50000 ? "border-primary bg-primary-container/5 ring-1 ring-primary/20" : "border-outline-variant"}`}>
-                  <input checked={shippingFee === 50000} onChange={() => setShippingFee(50000)} className="size-5 text-primary border-outline-variant focus:ring-primary" name="shipping" type="radio" />
-                  <div className="ml-4 md:ml-5">
-                    <span className="block font-bold text-on-surface">Giao hàng hỏa tốc</span>
-                    <span className="text-xs font-medium text-on-surface-variant">Nhận hàng trong ngày</span>
-                  </div>
-                  <span className="ml-auto font-bold text-sm md:text-base">50.000đ</span>
-                </label>
+                {isLoadingRates ? (
+                  <p className="text-on-surface-variant">Đang tính phí vận chuyển...</p>
+                ) : shippingRates.length > 0 ? (
+                  shippingRates.map((rate) => {
+                    const isSelected = selectedShippingProviderId === rate.providerId;
+
+                    return (
+                      <label
+                        key={rate.providerId}
+                        className={`relative flex items-center p-4 md:p-6 border-2 rounded-2xl cursor-pointer transition-all group ${isSelected ? "border-primary bg-primary-container/5 ring-1 ring-primary/20" : "border-outline-variant"}`}
+                      >
+                        <input
+                          checked={isSelected}
+                          onChange={() => {
+                            setSelectedShippingProviderId(rate.providerId);
+                            setShippingFee(rate.fee);
+                            setError("");
+                          }}
+                          className="size-5 text-primary border-outline-variant focus:ring-primary"
+                          name="shipping"
+                          type="radio"
+                        />
+                        <div className="ml-4 md:ml-5">
+                          <span className="block font-bold text-on-surface">{rate.providerName}</span>
+                          <span className="text-xs font-medium text-on-surface-variant">{rate.estimatedDays}</span>
+                        </div>
+                        <span className="ml-auto font-bold text-primary text-sm md:text-base">{rate.fee.toLocaleString()}đ</span>
+                      </label>
+                    );
+                  })
+                ) : (
+                  <p className="text-sm text-on-surface-variant">Chọn địa chỉ hợp lệ để hiển thị đơn vị vận chuyển.</p>
+                )}
               </div>
             </motion.section>
 
@@ -165,6 +309,19 @@ export default function Checkout() {
                 <input defaultChecked className="size-5 text-primary border-outline-variant focus:ring-primary" name="payment" type="radio" value="COD" />
                 <span className="ml-4 md:ml-5 font-bold text-on-surface text-sm md:text-base">Thanh toán khi nhận hàng (COD)</span>
               </label>
+
+              <div className="mt-6">
+                <label className="block text-xs font-bold uppercase tracking-widest text-on-surface-variant mb-2 ml-1">
+                  Ghi chú đơn hàng
+                </label>
+                <textarea
+                  value={note}
+                  onChange={(e) => setNote(e.target.value)}
+                  rows={4}
+                  className="w-full rounded-2xl border border-outline-variant p-4 resize-none focus:outline-none focus:ring-2 focus:ring-primary/20"
+                  placeholder="Ví dụ: giao giờ hành chính, gọi trước khi giao..."
+                />
+              </div>
             </motion.section>
           </motion.div>
 
@@ -180,7 +337,7 @@ export default function Checkout() {
                   {cart?.items.map((item) => (
                     <div key={item.productId} className="py-5 flex gap-5 items-center">
                       <div className="size-20 flex-shrink-0 bg-surface-container-low rounded-xl overflow-hidden border border-outline-variant/30">
-                        <img className="size-full object-cover" src={item.imageUrl || "/assets/hero.png"} alt={item.productName} />
+                        <img className="size-full object-cover" src={getCartItemImage(item) || "/assets/hero.png"} alt={item.productName} />
                       </div>
                       <div className="flex-grow">
                         <h4 className="font-bold text-on-surface text-sm line-clamp-1">{item.productName}</h4>
@@ -207,12 +364,11 @@ export default function Checkout() {
                 </div>
 
                 <button
-                  disabled
-                  title="BE chưa có endpoint tạo đơn hàng"
-                  className="w-full bg-surface-container text-on-surface-variant h-16 rounded-2xl font-bold text-lg mt-10 flex items-center justify-center gap-3 cursor-not-allowed"
+                  onClick={handlePlaceOrder}
+                  disabled={!selectedAddress || !selectedShippingProviderId || !cart?.items?.length || isSubmittingOrder || isLoadingRates}
+                  className="w-full bg-primary text-white h-16 rounded-2xl font-bold text-lg mt-10 flex items-center justify-center gap-3 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  Chưa có API đặt hàng
-                  <Lock size={20} />
+                  {isSubmittingOrder ? "Đang đặt hàng..." : "Đặt hàng"}
                 </button>
 
                 {!selectedAddress && (

@@ -5,13 +5,21 @@ export interface CartItem {
   productId: number;
   productName: string;
   productSlug: string;
-  imageUrl?: string | null;
   unitPrice: number;
   unit?: string | null;
   quantity: number;
   subtotal: number;
   addedAt?: string;
+  // Support multiple possible field names for image URL from backend
+  imageUrl?: string | null;
+  productImageUrl?: string | null;
+  image?: string | null;
+  thumbnailUrl?: string | null;
 }
+
+export const getCartItemImage = (item: CartItem): string => {
+  return item.imageUrl || item.productImageUrl || item.image || item.thumbnailUrl || "";
+};
 
 export interface Cart {
   id: number;

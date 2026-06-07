@@ -2,8 +2,8 @@ import { useEffect, useState } from "react";
 import { Link, useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2, ChevronRight, ShoppingCart, ArrowLeft, ArrowRight, ShieldCheck, CreditCard, Landmark, Banknote } from "lucide-react";
 import { motion } from "motion/react";
-import type { Cart as CartModel } from "../services/cartService";
-import { clearCart, decreaseCartItem, getCurrentCart, addCartItem, removeCartItem } from "../services/cartService";
+import type { Cart as CartModel, CartItem } from "../services/cartService";
+import { clearCart, decreaseCartItem, getCurrentCart, addCartItem, removeCartItem, getCartItemImage } from "../services/cartService";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -96,7 +96,7 @@ export default function Cart() {
                         <td className="px-8 py-8">
                           <div className="flex items-center gap-6">
                             <div className="size-20 bg-surface-container rounded-xl overflow-hidden flex-shrink-0 border border-outline-variant/30">
-                              <img src={item.imageUrl || "/assets/hero.png"} alt={item.productName} className="size-full object-cover" />
+                              <img src={getCartItemImage(item) || "/assets/hero.png"} alt={item.productName} className="size-full object-cover" />
                             </div>
                             <div>
                               <h3 className="font-bold text-on-surface leading-snug">{item.productName}</h3>
