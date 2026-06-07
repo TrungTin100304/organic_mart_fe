@@ -1,5 +1,5 @@
-import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import React, { useMemo, useState, useEffect } from 'react';
+import { Link, useNavigate } from 'react-router-dom';
 import { ProfileCard } from '@/components/ProfileCard';
 import { useUser } from '@/hooks/useUser';
 import * as addressService from '@/services/addressService';
@@ -15,6 +15,7 @@ interface Toast {
 const TABS = [
   { key: 'profile' as const, label: 'Thông tin cá nhân', icon: 'person' },
   { key: 'orders' as const, label: 'Lịch sử mua hàng', icon: 'history' },
+  { key: 'order-detail' as const, label: 'Chi tiết đơn hàng', icon: 'package_2' },
   { key: 'addresses' as const, label: 'Sổ địa chỉ', icon: 'location_on' },
   { key: 'settings' as const, label: 'Cài đặt', icon: 'settings' },
 ] as const;
@@ -302,14 +303,14 @@ const UserInfoPage: React.FC = () => {
     localStorage.removeItem("userEmail");
     localStorage.removeItem("userRole");
     showToast("Đăng xuất thành công!", "success");
-    setTimeout(() => {
-      navigate("/login");
-    }, 1000);
+    navigate("/login", { replace: true });
   };
 
-  if (!localStorage.getItem("accessToken") || error) {
+  if (error) {
     return null;
   }
+
+  const featuredOrder = useMemo(() => user?.recentOrders?.[0] || null, [user?.recentOrders]);
 
   if (isLoading) {
     return (
@@ -325,6 +326,9 @@ const UserInfoPage: React.FC = () => {
   if (!user) return null;
 
   const recentOrders = user.recentOrders || [];
+  const handleOpenOrderDetail = () => {
+    navigate(featuredOrder ? `/tracking/${featuredOrder.id}` : '/tracking/OM-92834');
+  };
 
   return (
     <main className="pt-24 pb-12 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto font-sans">
@@ -347,7 +351,13 @@ const UserInfoPage: React.FC = () => {
             {TABS.map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => {
+                  if (tab.key === 'order-detail') {
+                    handleOpenOrderDetail();
+                    return;
+                  }
+                  setActiveTab(tab.key);
+                }}
                 className={`w-full flex items-center gap-4 px-4 py-3 rounded-xl font-label-lg text-label-lg transition-all active:scale-95 text-left cursor-pointer ${
                   activeTab === tab.key
                     ? 'bg-primary text-white shadow-md font-bold'
@@ -374,7 +384,13 @@ const UserInfoPage: React.FC = () => {
             {TABS.map((tab) => (
               <button
                 key={tab.key}
-                onClick={() => setActiveTab(tab.key)}
+                onClick={() => {
+                  if (tab.key === 'order-detail') {
+                    handleOpenOrderDetail();
+                    return;
+                  }
+                  setActiveTab(tab.key);
+                }}
                 className={`flex items-center gap-2 px-4 py-2.5 rounded-full text-sm font-bold whitespace-nowrap transition-all active:scale-95 cursor-pointer ${
                   activeTab === tab.key
                     ? 'bg-primary text-white shadow-md'
@@ -610,6 +626,86 @@ const UserInfoPage: React.FC = () => {
                     </tbody>
                   </table>
                 </div>
+              </section>
+            </div>
+          )}
+
+          {activeTab === 'order-detail' && (
+            <div className="space-y-8">
+              <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
+                <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-4 mb-6">
+                  <div>
+                    <h3 className="font-headline-md text-headline-md text-primary">Chi tiết đơn hàng</h3>
+                    <p className="text-on-surface-variant text-body-md mt-1">
+                      Mục này tách riêng với lịch sử mua hàng, dùng để xem nhanh chi tiết đơn gần nhất hoặc mở trang theo dõi đơn đầy đủ.
+                    </p>
+                  </div>
+                  {featuredOrder && (
+                    <Link
+                      to={`/tracking/${featuredOrder.id}`}
+                      className="inline-flex items-center gap-2 px-5 py-3 rounded-full bg-primary text-white font-bold hover:bg-primary/95 transition-all"
+                    >
+                      <span className="material-symbols-outlined text-[20px]">open_in_new</span>
+                      Mở trang chi tiết đơn hàng
+                    </Link>
+                  )}
+                </div>
+
+                {featuredOrder ? (
+                  <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                    <div className="lg:col-span-2 bg-surface-container-low rounded-2xl border border-outline-variant p-6">
+                      <div className="flex flex-col sm:flex-row sm:items-start sm:justify-between gap-4 mb-6">
+                        <div>
+                          <p className="text-sm text-on-surface-variant">Mã đơn hàng</p>
+                          <h4 className="text-2xl font-bold text-primary mt-1">#{featuredOrder.id}</h4>
+                          <p className="text-sm text-on-surface-variant mt-2">
+                            Ngày đặt: {new Date(featuredOrder.date).toLocaleDateString('vi-VN')}
+                          </p>
+                        </div>
+                        <span className={`inline-flex items-center gap-2 px-4 py-2 rounded-full text-sm font-bold ${featuredOrder.status === 'Out for Delivery' ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container-high text-on-surface-variant'}`}>
+                          {featuredOrder.status === 'Out for Delivery' && <span className="w-2 h-2 rounded-full bg-primary animate-pulse" />}
+                          {featuredOrder.status}
+                        </span>
+                      </div>
+
+                      <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-4">
+                          <p className="text-xs text-on-surface-variant uppercase tracking-wider mb-1">Tổng thanh toán</p>
+                          <p className="font-bold text-lg text-on-surface">{featuredOrder.total.toLocaleString()}đ</p>
+                        </div>
+                        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-4">
+                          <p className="text-xs text-on-surface-variant uppercase tracking-wider mb-1">Sản phẩm</p>
+                          <p className="font-bold text-lg text-on-surface">{featuredOrder.items?.length || 0} món</p>
+                        </div>
+                        <div className="bg-surface-container-lowest rounded-xl border border-outline-variant p-4">
+                          <p className="text-xs text-on-surface-variant uppercase tracking-wider mb-1">Khách nhận</p>
+                          <p className="font-bold text-lg text-on-surface truncate">{user.fullName}</p>
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="bg-primary-container/30 rounded-2xl border border-primary/10 p-6 flex flex-col justify-between">
+                      <div>
+                        <h4 className="font-bold text-primary text-lg mb-2">Theo dõi đơn hàng trực tiếp</h4>
+                        <p className="text-on-surface-variant text-body-md leading-relaxed">
+                          Xem tiến trình xử lý, trạng thái vận chuyển, địa chỉ nhận và sản phẩm trong đơn trên trang chi tiết riêng.
+                        </p>
+                      </div>
+                      <Link
+                        to={`/tracking/${featuredOrder.id}`}
+                        className="mt-6 inline-flex items-center justify-center gap-2 px-5 py-3 rounded-full border border-primary text-primary font-bold hover:bg-primary hover:text-white transition-all"
+                      >
+                        <span className="material-symbols-outlined text-[20px]">visibility</span>
+                        Xem chi tiết đơn hàng
+                      </Link>
+                    </div>
+                  </div>
+                ) : (
+                  <div className="py-12 text-center text-on-surface-variant">
+                    <span className="material-symbols-outlined text-[36px] text-outline">package_2</span>
+                    <p className="mt-3">Hiện chưa có đơn hàng để hiển thị chi tiết.</p>
+                  </div>
+                )}
               </section>
             </div>
           )}

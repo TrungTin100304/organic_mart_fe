@@ -10,6 +10,7 @@ import Shop from "./pages/Shop";
 import ProductDetail from "./pages/ProductDetail";
 import Cart from "./pages/Cart";
 import Checkout from "./pages/Checkout";
+import OrderTracking from "./pages/OrderTracking";
 import MealPlan from "./pages/MealPlan";
 import Auth from "./pages/Auth";
 import About from "./pages/About";
@@ -54,6 +55,7 @@ function StorefrontLayout() {
           <Route path="/product/:id" element={<ProductDetail />} />
           <Route path="/cart" element={<Cart />} />
           <Route path="/checkout" element={<Checkout />} />
+          <Route path="/tracking/:orderCode" element={<OrderTracking />} />
           <Route path="/meal-plan" element={<MealPlan />} />
           <Route path="/about" element={<About />} />
           <Route path="/register" element={<Auth />} />
