@@ -167,7 +167,7 @@ export default function Checkout() {
       });
 
       await clearCart();
-      navigate(`/tracking/${order.orderCode}`, {
+      navigate(`/account?tab=orders`, {
         state: {
           orderCreated: true,
           orderId: order.id,

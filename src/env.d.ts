@@ -2,11 +2,11 @@
 
 interface ImportMetaEnv {
   readonly VITE_GEMINI_API_KEY: string;
-  readonly VITE_API_BASE_URL?: string;
-  // thêm các biến môi trường khác vào đây nếu có
+  readonly VITE_API_BASE_URL: string;
+  readonly VITE_API_PROXY_TARGET: string;
+  readonly APP_URL: string;
 }
 
 interface ImportMeta {
   readonly env: ImportMetaEnv;
 }
-

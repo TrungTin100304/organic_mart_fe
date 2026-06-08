@@ -15,13 +15,21 @@ const DEFAULT_API_BASE_URL = "https://organic-mart-be-1.onrender.com/api/v1";
 
 const getConfiguredBaseUrl = () => {
   const viteEnv = (import.meta as ImportMeta & { env?: Record<string, any> }).env;
+  const proxyTarget = viteEnv?.VITE_API_PROXY_TARGET;
   const baseUrl = viteEnv?.VITE_API_BASE_URL;
-  
-  if (viteEnv?.PROD && baseUrl && typeof baseUrl === "string" && baseUrl.startsWith("/")) {
-    return DEFAULT_API_BASE_URL;
+
+  // Dev mode with proxy: VITE_API_PROXY_TARGET is the backend server
+  if (proxyTarget && typeof proxyTarget === "string" && proxyTarget.trim().length > 0) {
+    const cleaned = proxyTarget.replace(/\/+$/, "");
+    return baseUrl && typeof baseUrl === "string" ? `${cleaned}${baseUrl}` : `${cleaned}/api/v1`;
   }
-  
-  return baseUrl || DEFAULT_API_BASE_URL;
+
+  // Production or no proxy: use baseUrl if it's an absolute URL, otherwise use default
+  if (baseUrl && typeof baseUrl === "string" && baseUrl.startsWith("http")) {
+    return baseUrl.replace(/\/+$/, "");
+  }
+
+  return DEFAULT_API_BASE_URL;
 };
 
 export const getApiBaseUrl = (value = getConfiguredBaseUrl()) => value.replace(/\/+$/, "");
@@ -65,8 +73,9 @@ const storeAuthTokens = (auth: { accessToken: string; refreshToken: string; emai
 };
 
 const joinUrl = (baseUrl: string, endpoint: string) => {
+  const cleanBase = baseUrl.replace(/\/+$/, "");
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
-  return `${getApiBaseUrl(baseUrl)}${cleanEndpoint}`;
+  return `${cleanBase}${cleanEndpoint}`;
 };
 
 export const normalizeRole = (role?: string | null): Role => {

@@ -20,11 +20,20 @@ export interface Allergen {
   createdAt?: string;
 }
 
+export interface OrderItemSummary {
+  name: string;
+  imageUrl?: string;
+  quantity?: number;
+}
+
 export interface OrderSummary {
-  id: string;
+  id: number;
+  orderCode: string;
   date: string; // ISO string or human-friendly
-  status: 'Delivered' | 'Out for Delivery' | 'Processing' | string;
+  status: 'PENDING' | 'PROCESSING' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED' | 'Delivered' | 'Out for Delivery' | 'Processing' | 'Pending' | 'Cancelled' | string;
   total: number;
+  itemCount?: number;
+  items?: OrderItemSummary[];
 }
 
 export interface User {

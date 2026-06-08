@@ -69,6 +69,42 @@ export interface Order {
   updatedAt: string;
 }
 
+// Paginated order list response
+export interface OrderListItem {
+  id: number;
+  orderCode: string;
+  userId: number;
+  userFullName: string;
+  status: string;
+  totalAmount: number;
+  itemCount: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface PageInfo {
+  offset: number;
+  pageNumber: number;
+  pageSize: number;
+  paged: boolean;
+  sort: { empty: boolean; sorted: boolean; unsorted: boolean };
+  unpaged: boolean;
+}
+
+export interface PaginatedOrders {
+  content: OrderListItem[];
+  empty: boolean;
+  first: boolean;
+  last: boolean;
+  number: number;
+  numberOfElements: number;
+  pageable: PageInfo;
+  size: number;
+  sort: { empty: boolean; sorted: boolean; unsorted: boolean };
+  totalElements: number;
+  totalPages: number;
+}
+
 export const getShipmentRates = (params: {
   province: string;
   district: string;
@@ -91,5 +127,15 @@ export const createOrder = (payload: CreateOrderPayload) =>
   apiRequest<Order>("/orders", {
     method: "POST",
     body: toJsonBody(payload),
+    requireAuth: true,
+  });
+
+export const getMyOrders = (page = 0, size = 10) =>
+  apiRequest<PaginatedOrders>(`/orders/me?page=${page}&size=${size}`, {
+    requireAuth: true,
+  });
+
+export const getOrderDetail = (orderId: number) =>
+  apiRequest<Order>(`/orders/${orderId}`, {
     requireAuth: true,
   });
