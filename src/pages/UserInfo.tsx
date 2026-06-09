@@ -3,8 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { ProfileCard } from '@/components/ProfileCard';
 import { useUser } from '@/hooks/useUser';
 import * as addressService from '@/services/addressService';
+import { getActiveBuildings, type ResidentialBuilding } from '@/services/buildingService';
 import * as allergenService from '@/services/allergenService';
-import type { Address, Allergen } from '@/types/user';
+import { getMyOrders, type OrderStatus, type UserOrderSummary } from '@/services/orderService';
+import type { Address, Allergen, DietType } from '@/types/user';
+import type { DietType as MealDietType } from '@/types/mealPlan';
+import { Scale, Target, Heart, X } from 'lucide-react';
 
 interface Toast {
   id: number;
@@ -21,11 +25,25 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]['key'];
 
+const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
+  PENDING: 'Chờ xác nhận',
+  CONFIRMED: 'Đã xác nhận',
+  PREPARING: 'Đang chuẩn bị',
+  READY_FOR_DELIVERY: 'Sẵn sàng giao',
+  DELIVERING: 'Đang giao',
+  DELIVERED: 'Đã giao',
+  CANCELLED: 'Đã hủy',
+  REFUNDED: 'Đã hoàn tiền',
+};
+
 const UserInfoPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isLoading, error, refetch } = useUser();
+  const { user, isLoading, error, refetch, updatePreference } = useUser();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [isAddressesLoading, setIsAddressesLoading] = useState(true);
+  const [orders, setOrders] = useState<UserOrderSummary[]>([]);
+  const [isOrdersLoading, setIsOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState('');
 
   // Active sidebar tab
   const [activeTab, setActiveTab] = useState<TabKey>('profile');
@@ -36,6 +54,17 @@ const UserInfoPage: React.FC = () => {
   const [newAllergenName, setNewAllergenName] = useState('');
   const [isAddingAllergen, setIsAddingAllergen] = useState(false);
 
+  // Health metrics / preference state
+  const [isMetricsModalOpen, setIsMetricsModalOpen] = useState(false);
+  const [metricsForm, setMetricsForm] = useState({
+    heightCm: '',
+    weightKg: '',
+    healthGoal: '',
+    dietType: 'NORMAL' as DietType | '',
+    dailyCalorieTarget: '',
+  });
+  const [isMetricsSubmitting, setIsMetricsSubmitting] = useState(false);
+
   // Profile Modal State
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
   const [profileForm, setProfileForm] = useState({ fullName: '', phone: '' });
@@ -44,6 +73,8 @@ const UserInfoPage: React.FC = () => {
   // Address Modal State
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  const [addressToDeleteId, setAddressToDeleteId] = useState<number | string | null>(null);
+  const [buildings, setBuildings] = useState<ResidentialBuilding[]>([]);
   const [addressForm, setAddressForm] = useState<Omit<Address, 'id'>>({
     label: 'HOME',
     customLabel: '',
@@ -56,6 +87,7 @@ const UserInfoPage: React.FC = () => {
     isDefault: false,
   });
   const [isAddressSubmitting, setIsAddressSubmitting] = useState(false);
+  const [isAddressDeleting, setIsAddressDeleting] = useState(false);
 
   // Toast Notification State
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -89,6 +121,12 @@ const UserInfoPage: React.FC = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (user && activeTab === 'orders') {
+      void loadOrders();
+    }
+  }, [activeTab, user]);
+
   const loadAddresses = async () => {
     setIsAddressesLoading(true);
     try {
@@ -112,6 +150,20 @@ const UserInfoPage: React.FC = () => {
       }
     } catch (err: any) {
       console.error('Failed to load allergens:', err);
+    }
+  };
+
+  const loadOrders = async () => {
+    setIsOrdersLoading(true);
+    setOrdersError('');
+    try {
+      const page = await getMyOrders({ page: 0, size: 20 });
+      setOrders(page.content);
+    } catch (err: unknown) {
+      setOrders([]);
+      setOrdersError(err instanceof Error ? err.message : 'Không thể tải lịch sử mua hàng.');
+    } finally {
+      setIsOrdersLoading(false);
     }
   };
 
@@ -206,6 +258,11 @@ const UserInfoPage: React.FC = () => {
 
   // Address CRUD
   const handleOpenAddressModal = (addr?: Address) => {
+    // Load buildings when modal opens
+    getActiveBuildings()
+      .then(setBuildings)
+      .catch(() => setBuildings([]));
+
     if (addr) {
       setEditingAddress(addr);
       setAddressForm({
@@ -213,11 +270,17 @@ const UserInfoPage: React.FC = () => {
         customLabel: addr.customLabel || '',
         recipientName: addr.recipientName,
         recipientPhone: addr.recipientPhone,
-        fullAddress: addr.fullAddress,
+        fullAddress: addr.fullAddress || '',
         ward: addr.ward || '',
         district: addr.district || '',
         city: addr.city || '',
         isDefault: addr.isDefault,
+        buildingId: addr.buildingId,
+        buildingCode: addr.buildingCode,
+        buildingName: addr.buildingName,
+        floor: addr.floor || '',
+        apartmentNumber: addr.apartmentNumber || '',
+        deliveryNote: addr.deliveryNote || '',
       });
     } else {
       setEditingAddress(null);
@@ -225,12 +288,18 @@ const UserInfoPage: React.FC = () => {
         label: 'HOME',
         customLabel: '',
         recipientName: user?.fullName || '',
-        recipientPhone: user?.phone || '',
+        recipientPhone: user?.phoneNumber || user?.phone || '',
         fullAddress: '',
         ward: '',
         district: '',
         city: '',
         isDefault: addresses.length === 0,
+        buildingId: undefined,
+        buildingCode: undefined,
+        buildingName: undefined,
+        floor: '',
+        apartmentNumber: '',
+        deliveryNote: '',
       });
     }
     setIsAddressModalOpen(true);
@@ -246,13 +315,16 @@ const UserInfoPage: React.FC = () => {
       showToast('Số điện thoại người nhận không được để trống', 'error');
       return;
     }
-    if (!addressForm.fullAddress.trim()) {
-      showToast('Địa chỉ chi tiết không được để trống', 'error');
-      return;
-    }
-    if (!addressForm.city?.trim()) {
-      showToast('Tỉnh/Thành phố không được để trống', 'error');
-      return;
+    // If a building is selected, all internal delivery fields are required
+    if (addressForm.buildingId) {
+      if (!addressForm.floor?.trim()) {
+        showToast('Vui lòng nhập số tầng', 'error');
+        return;
+      }
+      if (!addressForm.apartmentNumber?.trim()) {
+        showToast('Vui lòng nhập số căn hộ', 'error');
+        return;
+      }
     }
 
     setIsAddressSubmitting(true);
@@ -276,14 +348,47 @@ const UserInfoPage: React.FC = () => {
     }
   };
 
-  const handleDeleteAddress = async (id: number | string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xoá địa chỉ này?')) return;
+  const handleDeleteAddress = (id: number | string) => {
+    setAddressToDeleteId(id);
+  };
+
+  const handleConfirmDeleteAddress = async () => {
+    if (addressToDeleteId === null) return;
+    setIsAddressDeleting(true);
     try {
-      await addressService.deleteAddress(id);
+      await addressService.deleteAddress(addressToDeleteId);
       showToast('Đã xoá địa chỉ', 'success');
+      setAddressToDeleteId(null);
       await loadAddresses();
     } catch (err: any) {
       showToast(err.message || 'Không thể xoá địa chỉ', 'error');
+    } finally {
+      setIsAddressDeleting(false);
+    }
+  };
+
+  const handleMetricsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const height = parseFloat(metricsForm.heightCm);
+    const weight = parseFloat(metricsForm.weightKg);
+    if (!height || height <= 0) { showToast('Chiều cao phải lớn hơn 0', 'error'); return; }
+    if (!weight || weight <= 0) { showToast('Cân nặng phải lớn hơn 0', 'error'); return; }
+    setIsMetricsSubmitting(true);
+    try {
+      await updatePreference({
+        heightCm: height,
+        weightKg: weight,
+        healthGoal: metricsForm.healthGoal || undefined,
+        dietType: metricsForm.dietType || undefined,
+        dailyCalorieTarget: metricsForm.dailyCalorieTarget ? parseInt(metricsForm.dailyCalorieTarget) : undefined,
+      });
+      showToast('Cập nhật chỉ số sức khỏe thành công!', 'success');
+      refetch();
+      setIsMetricsModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Không thể lưu chỉ số sức khỏe', 'error');
+    } finally {
+      setIsMetricsSubmitting(false);
     }
   };
 
@@ -323,8 +428,6 @@ const UserInfoPage: React.FC = () => {
   }
 
   if (!user) return null;
-
-  const recentOrders = user.recentOrders || [];
 
   return (
     <main className="pt-24 pb-12 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto font-sans">
@@ -473,6 +576,77 @@ const UserInfoPage: React.FC = () => {
                   </form>
                 </div>
               </section>
+
+              {/* Health Metrics Section */}
+              <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
+                <div className="flex flex-col mb-6">
+                  <h3 className="font-headline-md text-headline-md text-primary mb-1">Chỉ số sức khỏe</h3>
+                  <p className="text-on-surface-variant text-body-md">
+                    Cập nhật chiều cao, cân nặng và mục tiêu calo hàng ngày để nhận thực đơn phù hợp với cơ thể bạn.
+                  </p>
+                </div>
+
+                {user.heightCm && user.weightKg && user.bmi ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <Scale className="w-4 h-4 text-on-surface-variant" />
+                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Chiều cao</span>
+                      </div>
+                      <p className="text-xl font-bold text-on-surface">{user.heightCm}</p>
+                      <p className="text-xs text-on-surface-variant">cm</p>
+                    </div>
+                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <Scale className="w-4 h-4 text-on-surface-variant" />
+                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Cân nặng</span>
+                      </div>
+                      <p className="text-xl font-bold text-on-surface">{user.weightKg}</p>
+                      <p className="text-xs text-on-surface-variant">kg</p>
+                    </div>
+                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">BMI</span>
+                      </div>
+                      <p className={`text-xl font-bold ${user.bmi < 18.5 || user.bmi >= 25 ? 'text-red-500' : user.bmi >= 23 ? 'text-amber-500' : 'text-green-600'}`}>
+                        {user.bmi}
+                      </p>
+                      <p className="text-xs text-on-surface-variant">
+                        {user.bmi < 18.5 ? 'Thiếu cân' : user.bmi < 23 ? 'Bình thường' : user.bmi < 25 ? 'Thừa cân' : 'Béo phì'}
+                      </p>
+                    </div>
+                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <Target className="w-4 h-4 text-on-surface-variant" />
+                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Calo/ngày</span>
+                      </div>
+                      <p className="text-xl font-bold text-on-surface">{user.dailyCalorieTarget ?? '—'}</p>
+                      <p className="text-xs text-on-surface-variant">kcal</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-on-surface-variant text-body-md mb-4">
+                    Bạn chưa nhập chỉ số sức khỏe. Cập nhật ngay để nhận thực đơn tốt nhất!
+                  </p>
+                )}
+
+                <button
+                  onClick={() => {
+                    setMetricsForm({
+                      heightCm: user.heightCm ? String(user.heightCm) : '',
+                      weightKg: user.weightKg ? String(user.weightKg) : '',
+                      healthGoal: user.healthGoal || '',
+                      dietType: user.dietType || '',
+                      dailyCalorieTarget: user.dailyCalorieTarget ? String(user.dailyCalorieTarget) : '',
+                    });
+                    setIsMetricsModalOpen(true);
+                  }}
+                  className="px-6 py-2.5 bg-primary text-white rounded-xl font-bold hover:bg-primary/95 transition-all active:scale-95 shadow-sm flex items-center gap-2"
+                >
+                  <Heart className="w-4 h-4" />
+                  {user.heightCm ? 'Cập nhật chỉ số' : 'Nhập chỉ số sức khỏe'}
+                </button>
+              </section>
             </div>
           )}
 
@@ -518,11 +692,18 @@ const UserInfoPage: React.FC = () => {
                                   {addr.recipientName} ({addr.recipientPhone})
                                 </p>
                                 <p className="text-on-surface-variant font-body-md text-body-md leading-relaxed">
-                                  {addr.fullAddress}
+                                  {addr.buildingId && addr.buildingCode
+                                    ? `Căn hộ ${addr.apartmentNumber || '?'}, tầng ${addr.floor || '?'}, tòa ${addr.buildingCode}`
+                                    : addr.fullAddress}
                                   {addr.ward && `, ${addr.ward}`}
                                   {addr.district && `, ${addr.district}`}
                                   {addr.city && `, ${addr.city}`}
                                 </p>
+                                {addr.buildingId && addr.buildingName && (
+                                  <p className="text-sm text-primary font-semibold">
+                                    {addr.buildingName}
+                                  </p>
+                                )}
                                 <div className="pt-2 flex gap-4 border-t border-outline-variant/30">
                                   <button
                                     onClick={() => handleOpenAddressModal(addr)}
@@ -583,18 +764,33 @@ const UserInfoPage: React.FC = () => {
                       </tr>
                     </thead>
                     <tbody className="divide-y divide-outline-variant">
-                      {recentOrders.length > 0 ? (
-                        recentOrders.map((o) => (
+                      {isOrdersLoading ? (
+                        <tr>
+                          <td className="py-8 text-center text-on-surface-variant" colSpan={4}>
+                            Đang tải lịch sử mua hàng...
+                          </td>
+                        </tr>
+                      ) : ordersError ? (
+                        <tr>
+                          <td className="py-8 text-center text-red-700" colSpan={4}>
+                            <p>{ordersError}</p>
+                            <button type="button" onClick={() => void loadOrders()} className="mt-3 font-bold text-primary hover:underline">
+                              Thử lại
+                            </button>
+                          </td>
+                        </tr>
+                      ) : orders.length > 0 ? (
+                        orders.map((o) => (
                           <tr key={o.id} className="hover:bg-surface-container-low transition-colors group cursor-pointer">
-                            <td className="py-4 font-body-md text-body-md font-bold text-primary">{o.id}</td>
-                            <td className="py-4 font-body-md text-body-md">{new Date(o.date).toLocaleDateString('vi-VN')}</td>
+                            <td className="py-4 font-body-md text-body-md font-bold text-primary">{o.orderCode}</td>
+                            <td className="py-4 font-body-md text-body-md">{new Date(o.createdAt).toLocaleDateString('vi-VN')}</td>
                             <td className="py-4">
-                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded ${o.status === 'Out for Delivery' ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container-high text-on-surface-variant'} text-[12px] font-bold`}>
-                                {o.status === 'Out for Delivery' && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
-                                {o.status}
+                              <span className={`inline-flex items-center gap-1 px-2 py-1 rounded ${o.status === 'DELIVERING' ? 'bg-secondary-container text-on-secondary-container' : 'bg-surface-container-high text-on-surface-variant'} text-[12px] font-bold`}>
+                                {o.status === 'DELIVERING' && <span className="w-1.5 h-1.5 rounded-full bg-primary animate-pulse" />}
+                                {ORDER_STATUS_LABELS[o.status]}
                               </span>
                             </td>
-                            <td className="py-4 font-price-display text-price-display text-right">{o.total.toLocaleString()}đ</td>
+                            <td className="py-4 font-price-display text-price-display text-right">{o.totalAmount.toLocaleString('vi-VN')}đ</td>
                           </tr>
                         ))
                       ) : (
@@ -764,49 +960,127 @@ const UserInfoPage: React.FC = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-label-lg font-bold text-on-surface-variant">Địa chỉ chi tiết *</label>
-                <input
-                  type="text"
-                  required
-                  value={addressForm.fullAddress}
-                  onChange={(e) => setAddressForm({ ...addressForm, fullAddress: e.target.value })}
-                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                  placeholder="Số nhà, tên đường, toà nhà..."
-                />
+                <label className="text-label-lg font-bold text-on-surface-variant">Tòa nhà</label>
+                <select
+                  value={addressForm.buildingId ?? ''}
+                  onChange={(e) => {
+                    const id = e.target.value ? Number(e.target.value) : undefined;
+                    const selected = buildings.find((b) => b.id === id);
+                    setAddressForm({
+                      ...addressForm,
+                      buildingId: id,
+                      buildingCode: selected?.code,
+                      buildingName: selected?.name,
+                    });
+                  }}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md cursor-pointer"
+                >
+                  <option value="">-- Chọn tòa nhà --</option>
+                  {buildings.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.code} - {b.name}
+                    </option>
+                  ))}
+                </select>
+                {!addressForm.buildingId && (
+                  <p className="text-xs text-on-surface-variant/70">
+                    Để trống nếu địa chỉ giao hàng bên ngoài khu chung cư
+                  </p>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">Phường/Xã</label>
-                  <input
-                    type="text"
-                    value={addressForm.ward}
-                    onChange={(e) => setAddressForm({ ...addressForm, ward: e.target.value })}
-                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="Phường/Xã"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">Quận/Huyện</label>
-                  <input
-                    type="text"
-                    value={addressForm.district}
-                    onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
-                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="Quận/Huyện"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">Tỉnh/Thành phố *</label>
-                  <input
-                    type="text"
-                    required
-                    value={addressForm.city}
-                    onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
-                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="Tỉnh/TP"
-                  />
-                </div>
+              {addressForm.buildingId && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label-lg font-bold text-on-surface-variant">Tầng *</label>
+                      <input
+                        type="text"
+                        required
+                        value={addressForm.floor ?? ''}
+                        onChange={(e) => setAddressForm({ ...addressForm, floor: e.target.value })}
+                        className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                        placeholder="VD: 5"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label-lg font-bold text-on-surface-variant">Căn hộ *</label>
+                      <input
+                        type="text"
+                        required
+                        value={addressForm.apartmentNumber ?? ''}
+                        onChange={(e) => setAddressForm({ ...addressForm, apartmentNumber: e.target.value })}
+                        className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                        placeholder="VD: 501"
+                      />
+                    </div>
+                  </div>
+                  {addressForm.buildingCode && (
+                    <div className="p-3 bg-primary-container/30 rounded-xl border border-primary/20">
+                      <p className="text-sm font-semibold text-primary">
+                        Địa chỉ giao hàng: Căn hộ {addressForm.apartmentNumber || '?'}, tầng {addressForm.floor || '?'}, tòa {addressForm.buildingCode}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!addressForm.buildingId && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-label-lg font-bold text-on-surface-variant">Địa chỉ chi tiết</label>
+                    <input
+                      type="text"
+                      value={addressForm.fullAddress}
+                      onChange={(e) => setAddressForm({ ...addressForm, fullAddress: e.target.value })}
+                      className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                      placeholder="Số nhà, tên đường..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label-lg font-bold text-on-surface-variant">Phường/Xã</label>
+                      <input
+                        type="text"
+                        value={addressForm.ward}
+                        onChange={(e) => setAddressForm({ ...addressForm, ward: e.target.value })}
+                        className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                        placeholder="Phường/Xã"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label-lg font-bold text-on-surface-variant">Quận/Huyện</label>
+                      <input
+                        type="text"
+                        value={addressForm.district}
+                        onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
+                        className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                        placeholder="Quận/Huyện"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label-lg font-bold text-on-surface-variant">Tỉnh/Thành phố</label>
+                      <input
+                        type="text"
+                        value={addressForm.city}
+                        onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                        className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                        placeholder="Tỉnh/TP"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex flex-col gap-1">
+                <label className="text-label-lg font-bold text-on-surface-variant">Ghi chú giao hàng</label>
+                <textarea
+                  value={addressForm.deliveryNote ?? ''}
+                  onChange={(e) => setAddressForm({ ...addressForm, deliveryNote: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md resize-none"
+                  rows={2}
+                  placeholder="VD: Gọi trước khi giao, để trước cửa..."
+                />
               </div>
 
               <div className="flex items-center gap-2 pt-2">
@@ -837,6 +1111,159 @@ const UserInfoPage: React.FC = () => {
                 >
                   {isAddressSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                   Lưu địa chỉ
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {addressToDeleteId !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => {
+            if (!isAddressDeleting) setAddressToDeleteId(null);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-address-title"
+            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-md p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in duration-200"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined">warning</span>
+              </div>
+              <div className="min-w-0">
+                <h3 id="delete-address-title" className="text-headline-md font-bold text-on-surface">Xoá địa chỉ</h3>
+                <p className="text-body-md text-on-surface-variant mt-2">Bạn có chắc chắn muốn xoá địa chỉ này?</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setAddressToDeleteId(null)}
+                disabled={isAddressDeleting}
+                className="px-5 py-2 rounded-full border border-outline text-on-surface-variant font-bold hover:bg-surface-container-high transition-all cursor-pointer disabled:opacity-50"
+              >
+                Huỷ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteAddress}
+                disabled={isAddressDeleting}
+                className="px-6 py-2 rounded-full bg-red-600 text-white font-bold hover:bg-red-700 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+              >
+                {isAddressDeleting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                Xoá
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Health Metrics Modal */}
+      {isMetricsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-md p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in duration-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-headline-md font-bold text-primary">Chỉ số sức khỏe</h3>
+              <button
+                onClick={() => setIsMetricsModalOpen(false)}
+                className="text-on-surface-variant hover:text-on-surface p-1 rounded-full hover:bg-surface-container-high transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleMetricsSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-label-lg font-bold text-on-surface-variant">Chiều cao (cm) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={300}
+                    placeholder="VD: 170"
+                    value={metricsForm.heightCm}
+                    onChange={(e) => setMetricsForm({ ...metricsForm, heightCm: e.target.value })}
+                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-label-lg font-bold text-on-surface-variant">Cân nặng (kg) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={500}
+                    placeholder="VD: 65"
+                    value={metricsForm.weightKg}
+                    onChange={(e) => setMetricsForm({ ...metricsForm, weightKg: e.target.value })}
+                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-label-lg font-bold text-on-surface-variant">Chế độ ăn</label>
+                <select
+                  value={metricsForm.dietType}
+                  onChange={(e) => setMetricsForm({ ...metricsForm, dietType: e.target.value as DietType | '' })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md cursor-pointer"
+                >
+                  <option value="">Không chọn</option>
+                  <option value="NORMAL">Bình thường</option>
+                  <option value="VEGETARIAN">Chay</option>
+                  <option value="VEGAN">Thuần chay</option>
+                  <option value="KETO">Keto</option>
+                  <option value="PALEO">Paleo</option>
+                  <option value="GLUTEN_FREE">Không gluten</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-label-lg font-bold text-on-surface-variant">Mục tiêu calo/ngày</label>
+                <input
+                  type="number"
+                  min={500}
+                  max={10000}
+                  placeholder="VD: 1800"
+                  value={metricsForm.dailyCalorieTarget}
+                  onChange={(e) => setMetricsForm({ ...metricsForm, dailyCalorieTarget: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-label-lg font-bold text-on-surface-variant">Mục tiêu sức khỏe</label>
+                <input
+                  type="text"
+                  maxLength={100}
+                  placeholder="VD: Giảm cân, Tăng cơ..."
+                  value={metricsForm.healthGoal}
+                  onChange={(e) => setMetricsForm({ ...metricsForm, healthGoal: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsMetricsModalOpen(false)}
+                  className="px-5 py-2 rounded-full border border-outline text-on-surface-variant font-bold hover:bg-surface-container-high transition-all cursor-pointer"
+                >
+                  Huỷ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isMetricsSubmitting}
+                  className="px-6 py-2 rounded-full bg-primary text-white font-bold hover:bg-primary/95 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isMetricsSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                  Lưu
                 </button>
               </div>
             </form>

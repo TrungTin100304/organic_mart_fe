@@ -14,9 +14,13 @@ const fallbackData = <T>(fallback: FallbackValue<T>) =>
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Không thể kết nối API.";
 
+export const isAdminMockEnabled = () =>
+  import.meta.env?.VITE_ENABLE_ADMIN_MOCKS === "true";
+
 export async function loadAdminDataWithFallback<T>(
   loader: () => Promise<T>,
   fallback: FallbackValue<T>,
+  allowFallback = isAdminMockEnabled(),
 ): Promise<AdminDataResult<T>> {
   try {
     return {
@@ -24,6 +28,10 @@ export async function loadAdminDataWithFallback<T>(
       source: "api",
     };
   } catch (error) {
+    if (!allowFallback) {
+      throw error;
+    }
+
     return {
       data: fallbackData(fallback),
       source: "mock",

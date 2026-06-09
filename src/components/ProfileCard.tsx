@@ -1,6 +1,7 @@
-import React, { useRef, useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import type { User } from '@/types/user';
 import { updateCurrentUser } from '@/services/userService';
+import { IMAGE_ACCEPT, validateImageFile } from '@/utils/imageUpload';
 
 interface ProfileCardProps {
   user: User;
@@ -16,7 +17,17 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
   onShowNotification,
 }) => {
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const objectUrlRef = useRef<string | null>(null);
   const [isUploading, setIsUploading] = useState(false);
+  const [avatarPreview, setAvatarPreview] = useState(user.avatarUrl ?? '/assets/hero.png');
+
+  useEffect(() => {
+    if (!objectUrlRef.current) setAvatarPreview(user.avatarUrl ?? '/assets/hero.png');
+  }, [user.avatarUrl]);
+
+  useEffect(() => () => {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+  }, []);
 
   const handleAvatarClick = () => {
     if (fileInputRef.current) {
@@ -29,6 +40,17 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
     if (!files || files.length === 0) return;
 
     const file = files[0];
+    e.target.value = '';
+    const validationError = validateImageFile(file);
+    if (validationError) {
+      onShowNotification?.(validationError, 'error');
+      return;
+    }
+
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    objectUrlRef.current = URL.createObjectURL(file);
+    setAvatarPreview(objectUrlRef.current);
+
     const formData = new FormData();
     formData.append('fullName', user.fullName);
     formData.append('phoneNumber', user.phone || '');
@@ -40,7 +62,12 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
     }
 
     try {
-      await updateCurrentUser(formData);
+      const updatedUser = await updateCurrentUser(formData);
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+      setAvatarPreview(updatedUser.avatarUrl ?? user.avatarUrl ?? '/assets/hero.png');
       if (onShowNotification) {
         onShowNotification('Cập nhật ảnh đại diện thành công!', 'success');
       }
@@ -49,6 +76,11 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
       }
     } catch (err: any) {
       console.error(err);
+      if (objectUrlRef.current) {
+        URL.revokeObjectURL(objectUrlRef.current);
+        objectUrlRef.current = null;
+      }
+      setAvatarPreview(user.avatarUrl ?? '/assets/hero.png');
       if (onShowNotification) {
         onShowNotification(err.message || 'Không thể tải ảnh đại diện', 'error');
       }
@@ -92,7 +124,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
             <div className="w-28 h-28 md:w-32 md:h-32 rounded-full overflow-hidden border-4 border-surface-container-lowest shadow-lg bg-surface-container-lowest">
               <img
                 alt={`${user.fullName} avatar`}
-                src={user.avatarUrl ?? '/assets/hero.png'}
+                src={avatarPreview}
                 className="w-full h-full object-cover"
               />
               {isUploading && (
@@ -113,7 +145,7 @@ export const ProfileCard: React.FC<ProfileCardProps> = ({
               type="file"
               ref={fileInputRef}
               onChange={handleAvatarChange}
-              accept="image/*"
+              accept={IMAGE_ACCEPT}
               className="hidden"
             />
           </div>

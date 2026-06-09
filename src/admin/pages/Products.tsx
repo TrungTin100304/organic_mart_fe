@@ -1,6 +1,8 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
-import { Search, Plus, Edit2, Trash2, Leaf, Package } from "lucide-react";
+import { Search, Plus, Edit2, Trash2, Leaf, Package, PackagePlus, RefreshCw } from "lucide-react";
+import { useNavigate } from "react-router-dom";
+import AdminConfirmModal from "../components/AdminConfirmModal";
 import ProductFormModal from "../components/ProductFormModal";
 import type { AdminProduct } from "../types";
 import type { Product } from "../../types";
@@ -9,6 +11,8 @@ import { getProductCategories, type ProductCategory } from "../../services/categ
 import { getInventoryBatches, type InventoryBatch } from "../../services/inventoryBatchService";
 import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
 import { getMockAdminProducts, getMockInventoryBatches, getMockProductCategories } from "../utils/mockAdapters";
+import { getCurrentUser } from "../../services/userService";
+import { isAdminRole, normalizeRole } from "../../services/apiClient";
 
 const statusMap: Record<AdminProduct["status"], { label: string; cls: string }> = {
   active: { label: "Đang bán", cls: "bg-emerald-50 text-emerald-700" },
@@ -42,6 +46,7 @@ const toAdminProduct = (product: Product, batches: InventoryBatch[]): AdminProdu
 };
 
 export default function Products() {
+  const navigate = useNavigate();
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
@@ -51,35 +56,43 @@ export default function Products() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
-  const [dataSource, setDataSource] = useState<AdminDataSource>("api");
+  const [productSource, setProductSource] = useState<AdminDataSource>("api");
   const [dataNotice, setDataNotice] = useState("");
+  const [productToDelete, setProductToDelete] = useState<AdminProduct | null>(null);
+  const [isDeleteProcessing, setIsDeleteProcessing] = useState(false);
+  const [currentRole, setCurrentRole] = useState<string>(() => {
+    try {
+      return localStorage.getItem("userRole") || "ROLE_USER";
+    } catch {
+      return "ROLE_USER";
+    }
+  });
 
   const loadData = async () => {
     setIsLoading(true);
     setError("");
     setDataNotice("");
     try {
-      const productResult = await loadAdminDataWithFallback(async () => {
-        const productPage = await getProducts({ page: 0, size: 200 });
-        const batchesResult = await loadAdminDataWithFallback(
-          getInventoryBatches,
-          getMockInventoryBatches,
-        );
-        return productPage.content.map((product) => toAdminProduct(product, batchesResult.data));
-      }, getMockAdminProducts);
+      const [productResult, batchesResult, categoryResult] = await Promise.all([
+        loadAdminDataWithFallback<Product[]>(
+          async () => {
+            const productPage = await getProducts({ page: 0, size: 200 });
+            return productPage.content;
+          },
+          () => getMockAdminProducts() as unknown as Product[],
+        ),
+        loadAdminDataWithFallback(getInventoryBatches, getMockInventoryBatches),
+        loadAdminDataWithFallback(getProductCategories, getMockProductCategories),
+      ]);
 
-      const categoryResult = await loadAdminDataWithFallback(
-        getProductCategories,
-        getMockProductCategories,
-      );
-
-      const nextSource = productResult.source === "mock" || categoryResult.source === "mock" ? "mock" : "api";
-      setProducts(productResult.data);
+      setProducts(productResult.data.map((product) => toAdminProduct(product, batchesResult.data)));
       setCategories(categoryResult.data);
-      setDataSource(nextSource);
+      setProductSource(productResult.source);
       setDataNotice(
         [productResult.error, categoryResult.error].filter(Boolean).join(" ") ||
-          (nextSource === "mock" ? "Đang hiển thị dữ liệu mẫu." : ""),
+          (productResult.source === "mock" || categoryResult.source === "mock"
+            ? "Đang hiển thị dữ liệu mẫu."
+            : ""),
       );
     } catch (err: any) {
       setError(err?.message || "Không thể tải danh sách sản phẩm.");
@@ -90,7 +103,21 @@ export default function Products() {
 
   useEffect(() => {
     void loadData();
+    void syncRole();
   }, []);
+
+  const syncRole = async () => {
+    try {
+      const me = await getCurrentUser();
+      const role = normalizeRole(me.role);
+      setCurrentRole(role);
+      if (!isAdminRole(role)) {
+        setDataNotice(`Cảnh báo: Tài khoản hiện tại có role "${role}" — không phải admin. Một số thao tác sẽ bị từ chối.`);
+      }
+    } catch (err: any) {
+      // ignore — admin guard already handles 401
+    }
+  };
 
   const filtered = useMemo(() => products.filter((product) => {
     if (search && !product.name.toLowerCase().includes(search.toLowerCase()) && !product.sku.toLowerCase().includes(search.toLowerCase())) {
@@ -105,63 +132,63 @@ export default function Products() {
   }), [products, search, catFilter]);
 
   const handleSubmit = async (values: ProductFormValues) => {
-    if (dataSource === "mock") {
-      const category = categories.find((item) => String(item.id) === String(values.categoryId));
-      const nextProduct: AdminProduct = {
-        id: editProduct?.id || `mock-${Date.now()}`,
-        name: values.name.trim(),
-        sku: editProduct?.sku || `MOCK-${Date.now()}`,
-        category: category?.name || editProduct?.category || "Chưa phân loại",
-        categoryId: String(values.categoryId),
-        price: Number(values.price || 0),
-        stock: editProduct?.stock || 0,
-        status: values.isActive ? (editProduct?.stock ? "active" : "out_of_stock") : "draft",
-        organic: editProduct?.organic ?? true,
-        image: editProduct?.image || "",
-        updatedAt: new Date().toISOString(),
-        unit: values.unit?.trim() || "kg",
-        description: values.description,
-        storageInstructions: values.storageInstructions,
-        detailedDescription: values.detailedDescription,
-      };
-
-      setProducts((current) =>
-        editProduct
-          ? current.map((product) => (product.id === editProduct.id ? { ...product, ...nextProduct } : product))
-          : [nextProduct, ...current],
-      );
-      setShowForm(false);
+    if (!values.name.trim()) {
+      alert("Vui lòng nhập tên sản phẩm.");
+      return;
+    }
+    if (!values.categoryId) {
+      alert("Vui lòng chọn danh mục.");
+      return;
+    }
+    const priceValue = Number(values.price);
+    if (!Number.isFinite(priceValue) || priceValue < 0) {
+      alert("Giá sản phẩm phải là số >= 0.");
       return;
     }
 
     setIsSubmitting(true);
     try {
+      const payload: ProductFormValues = {
+        ...values,
+        name: values.name.trim(),
+        price: priceValue,
+        unit: (values.unit || "kg").trim() || "kg",
+      };
       if (editProduct) {
-        await updateProduct(editProduct.id, values);
+        await updateProduct(editProduct.id, payload);
       } else {
-        await createProduct(values);
+        await createProduct(payload);
       }
       setShowForm(false);
+      setEditProduct(null);
       await loadData();
     } catch (err: any) {
-      alert(err?.message || "Không thể lưu sản phẩm.");
+      throw new Error(err?.message || "Không thể lưu sản phẩm.");
     } finally {
       setIsSubmitting(false);
     }
   };
 
-  const handleDelete = async (product: AdminProduct) => {
-    if (!window.confirm(`Xóa sản phẩm "${product.name}"?`)) return;
-    if (dataSource === "mock") {
-      setProducts((current) => current.filter((item) => item.id !== product.id));
-      return;
-    }
+  const handleDelete = (product: AdminProduct) => {
+    setProductToDelete(product);
+  };
 
+  const handleConfirmDelete = async () => {
+    if (!productToDelete) return;
+    setIsDeleteProcessing(true);
     try {
-      await deleteProduct(product.id);
+      await deleteProduct(productToDelete.id);
       await loadData();
+      setProductToDelete(null);
     } catch (err: any) {
-      alert(err?.message || "Không thể xóa sản phẩm.");
+      const message = err?.message || "Không thể xóa sản phẩm.";
+      if (/403|forbidden/i.test(message)) {
+        alert(`403 — Backend từ chối quyền xóa sản phẩm.\n\nChi tiết: ${message}`);
+      } else {
+        alert(message);
+      }
+    } finally {
+      setIsDeleteProcessing(false);
     }
   };
 
@@ -170,11 +197,18 @@ export default function Products() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Sản phẩm</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">{products.length} sản phẩm {sourceLabel(dataSource)}</p>
+          <p className="text-sm text-on-surface-variant mt-0.5">
+            {products.length} sản phẩm {sourceLabel(productSource)} · Role: <span className={`font-bold ${currentRole === "ROLE_ADMIN" ? "text-primary" : "text-red-600"}`}>{currentRole}</span>
+          </p>
         </div>
-        <button onClick={() => { setEditProduct(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all self-start">
-          <Plus className="w-4 h-4" /> Thêm sản phẩm
-        </button>
+        <div className="flex gap-2">
+          <button onClick={() => void syncRole()} className="flex items-center gap-2 px-3 py-2.5 border border-outline-variant/30 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-surface-container" title="Đồng bộ role từ /users/me">
+            <RefreshCw className="w-4 h-4" /> Sync role
+          </button>
+          <button onClick={() => { setEditProduct(null); setShowForm(true); }} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all self-start">
+            <Plus className="w-4 h-4" /> Thêm sản phẩm
+          </button>
+        </div>
       </motion.div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -242,6 +276,13 @@ export default function Products() {
                       Tồn kho: {product.stock}
                     </span>
                     <div className="flex gap-1">
+                      <button
+                        onClick={() => navigate(`/admin/inventory?productId=${product.id}`)}
+                        title="Nhập kho"
+                        className="p-1.5 rounded-lg hover:bg-primary/10 text-on-surface-variant hover:text-primary transition-colors"
+                      >
+                        <PackagePlus className="w-3.5 h-3.5" />
+                      </button>
                       <button onClick={() => { setEditProduct(product); setShowForm(true); }} className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-primary transition-colors">
                         <Edit2 className="w-3.5 h-3.5" />
                       </button>
@@ -264,6 +305,17 @@ export default function Products() {
         isSubmitting={isSubmitting}
         onClose={() => setShowForm(false)}
         onSubmit={handleSubmit}
+      />
+      <AdminConfirmModal
+        open={Boolean(productToDelete)}
+        title="Xóa sản phẩm"
+        message={`Bạn có chắc chắn muốn xóa sản phẩm "${productToDelete?.name || ""}" khỏi hệ thống?`}
+        confirmLabel="Xóa"
+        isProcessing={isDeleteProcessing}
+        onClose={() => {
+          if (!isDeleteProcessing) setProductToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
       />
     </div>
   );

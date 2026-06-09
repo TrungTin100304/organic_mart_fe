@@ -3,7 +3,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { Minus, Plus, Trash2, ChevronRight, ShoppingCart, ArrowLeft, ArrowRight, ShieldCheck, CreditCard, Landmark, Banknote } from "lucide-react";
 import { motion } from "motion/react";
 import type { Cart as CartModel } from "../services/cartService";
-import { clearCart, decreaseCartItem, getCurrentCart, addCartItem, removeCartItem } from "../services/cartService";
+import { clearCart, setCartItemQuantity, getCurrentCart, addCartItem, removeCartItem } from "../services/cartService";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -56,9 +56,8 @@ export default function Cart() {
     }
   };
 
-  const shippingFee = cart && cart.totalPrice > 0 ? 20000 : 0;
   const discount = 0;
-  const total = (cart?.totalPrice || 0) + shippingFee - discount;
+  const total = (cart?.totalPrice || 0) - discount;
 
   return (
     <div className="max-w-7xl mx-auto px-6 md:px-10 py-10">
@@ -110,7 +109,7 @@ export default function Cart() {
                         <td className="px-6 py-8">
                           <div className="flex items-center justify-center">
                             <div className="flex items-center border border-outline-variant rounded-full p-1 bg-surface-container-low">
-                              <button onClick={() => mutateCart(() => decreaseCartItem(item.productId, 1))} className="size-8 flex items-center justify-center text-primary hover:bg-white rounded-full transition-all shadow-sm"><Minus size={14} /></button>
+                              <button onClick={() => mutateCart(() => setCartItemQuantity(item.productId, Math.max(1, item.quantity - 1)))} className="size-8 flex items-center justify-center text-primary hover:bg-white rounded-full transition-all shadow-sm"><Minus size={14} /></button>
                               <span className="w-10 text-center font-bold text-sm">{item.quantity}</span>
                               <button onClick={() => mutateCart(() => addCartItem(item.productId, 1))} className="size-8 flex items-center justify-center text-primary hover:bg-white rounded-full transition-all shadow-sm"><Plus size={14} /></button>
                             </div>
@@ -155,7 +154,7 @@ export default function Cart() {
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-on-surface-variant font-medium">Phí vận chuyển</span>
-                  <span className="text-secondary font-bold text-lg">{shippingFee.toLocaleString()}đ</span>
+                  <span className="text-secondary font-bold text-sm text-right">Tính tại bước thanh toán</span>
                 </div>
                 <div className="flex justify-between items-center">
                   <span className="text-on-surface-variant font-medium">Giảm giá</span>
