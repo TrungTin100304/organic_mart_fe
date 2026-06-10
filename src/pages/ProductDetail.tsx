@@ -7,6 +7,7 @@ import type { Product } from "../types";
 import { getProductById, getProducts } from "../services/productService";
 import { addCartItem } from "../services/cartService";
 import { getAllergenDisplayName, getAllergenKey } from "../utils/productAllergens";
+import { getProductReviews, type ProductReview } from "../services/reviewService";
 
 const fadeIn = {
   initial: { opacity: 0, y: 20 },
@@ -23,16 +24,22 @@ export default function ProductDetail() {
   const [isLoading, setIsLoading] = useState(true);
   const [isAdding, setIsAdding] = useState(false);
   const [error, setError] = useState("");
+  const [reviews, setReviews] = useState<ProductReview[]>([]);
 
   useEffect(() => {
     if (!id) return;
     let mounted = true;
     setIsLoading(true);
-    Promise.all([getProductById(id), getProducts({ page: 0, size: 6 })])
-      .then(([detail, productPage]) => {
+    Promise.all([
+      getProductById(id),
+      getProducts({ page: 0, size: 6 }),
+      getProductReviews(id).catch(() => null),
+    ])
+      .then(([detail, productPage, reviewPage]) => {
         if (!mounted) return;
         setProduct(detail);
         setRelated(productPage.content.filter((item) => item.id !== detail.id).slice(0, 4));
+        setReviews(reviewPage?.content ?? []);
       })
       .catch((err: any) => {
         if (mounted) setError(err?.message || "Không thể tải sản phẩm.");
@@ -214,6 +221,34 @@ export default function ProductDetail() {
           )}
         </div>
       </motion.div>
+
+      <section className="mb-20">
+        <h2 className="text-2xl font-bold text-primary mb-6">Đánh giá đã duyệt</h2>
+        {reviews.length === 0 ? (
+          <div className="rounded-2xl border border-outline-variant bg-white p-8 text-center text-on-surface-variant">
+            Chưa có đánh giá nào cho sản phẩm này.
+          </div>
+        ) : (
+          <div className="grid gap-4 md:grid-cols-2">
+            {reviews.map((review) => (
+              <article key={review.id} className="rounded-2xl border border-outline-variant bg-white p-5">
+                <div className="mb-2 flex items-center justify-between gap-3">
+                  <strong className="text-sm">{review.userFullName}</strong>
+                  <span className="text-xs text-on-surface-variant">
+                    {new Date(review.createdAt).toLocaleDateString("vi-VN")}
+                  </span>
+                </div>
+                <div className="mb-2 flex text-amber-500">
+                  {Array.from({ length: 5 }).map((_, index) => (
+                    <Star key={index} size={15} fill={index < review.rating ? "currentColor" : "none"} />
+                  ))}
+                </div>
+                <p className="text-sm text-on-surface-variant">{review.comment || "(Không có bình luận)"}</p>
+              </article>
+            ))}
+          </div>
+        )}
+      </section>
 
       {related.length > 0 && (
         <section className="mb-20">

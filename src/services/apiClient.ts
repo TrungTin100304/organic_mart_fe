@@ -146,10 +146,16 @@ export async function apiRequest<T>(
       }
     }
 
-    if (response.status === 401 || response.status === 403) {
+    if (response.status === 401) {
       clearAuthStorage();
     }
-    throw new Error(payload?.message || payload?.error || `API request failed (${response.status})`);
+
+    const message = payload?.message || payload?.error || payload || `API request failed (${response.status})`;
+    if (typeof window !== "undefined") {
+      // eslint-disable-next-line no-console
+      console.error(`[apiClient] ${response.status} ${endpoint}`, { payload, raw: text });
+    }
+    throw new Error(typeof message === "string" ? message : `API request failed (${response.status})`);
   }
 
   if (payload && typeof payload === "object" && "data" in payload) {

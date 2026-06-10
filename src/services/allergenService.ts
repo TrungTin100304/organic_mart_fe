@@ -10,3 +10,16 @@ export const createAllergen = (name: string) =>
     body: toJsonBody({ name }),
     requireAuth: true,
   });
+
+export const updateAllergen = (id: string | number, name: string) =>
+  apiRequest<Allergen>(`/allergens/${id}`, {
+    method: "PUT",
+    body: toJsonBody({ name }),
+    requireAuth: true,
+  });
+
+export const deleteAllergen = (id: string | number) =>
+  apiRequest<void>(`/allergens/${id}`, {
+    method: "DELETE",
+    requireAuth: true,
+  });

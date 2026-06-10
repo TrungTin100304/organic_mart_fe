@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import { addCartItem, decreaseCartItem, getCurrentCart, removeCartItem } from '@/services/cartService';
+import { addCartItem, setCartItemQuantity, getCurrentCart, removeCartItem } from '@/services/cartService';
 import type { Cart } from '@/services/cartService';
 
 export const useCart = () => {
@@ -60,7 +60,7 @@ export const useCart = () => {
     setError(null);
 
     try {
-      const data = await decreaseCartItem(itemId, quantity);
+      const data = await setCartItemQuantity(itemId, quantity);
       setCart(data);
       return data;
     } catch (e: unknown) {

@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
-import { Search, Trash2, Eye, ChevronLeft, ChevronRight } from "lucide-react";
+import { Search, Trash2, Eye, Edit2, Plus, ChevronLeft, ChevronRight, Lock, Unlock } from "lucide-react";
+import AdminConfirmModal from "../components/AdminConfirmModal";
 import UserDetailDrawer from "../components/UserDetailDrawer";
+import UserFormModal, { type UserFormValues } from "../components/UserFormModal";
 import type { AdminUser } from "../types";
 import type { User } from "../../types/user";
-import { deleteUser, getUsers } from "../../services/adminUserService";
+import { createUser, deleteUser, getUsers, updateUser, updateUserStatus } from "../../services/adminUserService";
 import { ADMIN_USERS } from "../mocks/users";
 import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
 
@@ -32,12 +34,36 @@ const toAdminUser = (user: User): AdminUser => ({
   totalSpent: 0,
 });
 
+const getCurrentUserEmail = () => {
+  try {
+    return localStorage.getItem("userEmail") || "";
+  } catch {
+    return "";
+  }
+};
+
+const isCurrentUser = (user: AdminUser) => {
+  const email = getCurrentUserEmail();
+  return Boolean(email) && email.toLowerCase() === (user.email || "").toLowerCase();
+};
+
+type UserConfirmAction =
+  | { type: "delete"; user: AdminUser }
+  | { type: "status"; user: AdminUser };
+
 export default function Users() {
   const [search, setSearch] = useState("");
-  const [roleFilter, setRoleFilter] = useState<"all" | AdminUser["role"]>("all");
+  const [roleFilter, setRoleFilter] = useState<"all" | "customer">("all");
+  const [statusFilter, setStatusFilter] = useState<"all" | AdminUser["status"]>("all");
   const [selectedUser, setSelectedUser] = useState<AdminUser | null>(null);
+  const [editingUser, setEditingUser] = useState<AdminUser | null>(null);
+  const [showForm, setShowForm] = useState(false);
   const [users, setUsers] = useState<AdminUser[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
+  const [statusUpdatingId, setStatusUpdatingId] = useState<string | null>(null);
+  const [confirmAction, setConfirmAction] = useState<UserConfirmAction | null>(null);
+  const [isConfirmProcessing, setIsConfirmProcessing] = useState(false);
   const [error, setError] = useState("");
   const [dataSource, setDataSource] = useState<AdminDataSource>("api");
   const [dataNotice, setDataNotice] = useState("");
@@ -51,7 +77,8 @@ export default function Users() {
         async () => (await getUsers()).map(toAdminUser),
         () => ADMIN_USERS,
       );
-      setUsers(result.data);
+      const safeUsers = result.data.filter((user) => user.role !== "admin");
+      setUsers(safeUsers);
       setDataSource(result.source);
       setDataNotice(result.error || (result.source === "mock" ? "Đang hiển thị dữ liệu mẫu." : ""));
     } catch (err: any) {
@@ -66,33 +93,157 @@ export default function Users() {
   }, []);
 
   const filtered = useMemo(() => users.filter((user) => {
+    if (user.role === "admin") return false;
     if (search && !user.name.toLowerCase().includes(search.toLowerCase()) && !user.email.toLowerCase().includes(search.toLowerCase())) {
       return false;
     }
-
     if (roleFilter !== "all" && user.role !== roleFilter) {
       return false;
     }
-
+    if (statusFilter !== "all" && user.status !== statusFilter) {
+      return false;
+    }
     return true;
-  }), [users, search, roleFilter]);
+  }), [users, search, roleFilter, statusFilter]);
 
-  const handleDelete = async (user: AdminUser) => {
-    if (!window.confirm(`Xóa người dùng "${user.name}"?`)) return;
-    if (dataSource === "mock") {
-      setUsers((current) => current.filter((item) => item.id !== user.id));
-      setSelectedUser(null);
+  const handleOpenCreate = () => {
+    setEditingUser(null);
+    setShowForm(true);
+  };
+
+  const handleOpenEdit = (user: AdminUser) => {
+    if (user.role === "admin") {
+      alert("Không thể chỉnh sửa tài khoản quản trị viên.");
       return;
     }
+    setEditingUser(user);
+    setShowForm(true);
+  };
 
+  const handleSubmit = async (values: UserFormValues) => {
+    if (String(values.role) === "ROLE_ADMIN") {
+      alert("Không được tạo hoặc chỉnh sửa tài khoản quản trị viên.");
+      return;
+    }
+    setIsSubmitting(true);
     try {
-      await deleteUser(user.id);
+      if (editingUser) {
+        await updateUser(editingUser.id, {
+          fullName: values.fullName,
+          phoneNumber: values.phoneNumber,
+        });
+      } else {
+        await createUser({
+          fullName: values.fullName,
+          email: values.email,
+          phoneNumber: values.phoneNumber,
+          password: values.password,
+          role: values.role,
+        });
+      }
+      setShowForm(false);
+      setEditingUser(null);
       await loadUsers();
-      setSelectedUser(null);
     } catch (err: any) {
-      alert(err?.message || "Không thể xóa người dùng.");
+      const message = err?.message || "Không thể lưu người dùng.";
+      if (/403|forbidden/i.test(message)) {
+        alert("Bạn không có quyền thực hiện thao tác này. Vui lòng kiểm tra tài khoản admin.");
+      } else {
+        alert(message);
+      }
+    } finally {
+      setIsSubmitting(false);
     }
   };
+
+  const handleDelete = (user: AdminUser) => {
+    if (user.role === "admin") {
+      alert("Không thể xóa tài khoản quản trị viên.");
+      return;
+    }
+    if (isCurrentUser(user)) {
+      alert("Bạn không thể tự xóa chính mình.");
+      return;
+    }
+    setConfirmAction({ type: "delete", user });
+  };
+
+  const handleToggleStatus = (user: AdminUser) => {
+    if (user.role === "admin") {
+      alert("Khong the doi trang thai tai khoan quan tri vien.");
+      return;
+    }
+    if (isCurrentUser(user)) {
+      alert("Ban khong the tu khoa hoac mo khoa chinh minh.");
+      return;
+    }
+    setConfirmAction({ type: "status", user });
+  };
+
+  const handleConfirmAction = async () => {
+    if (!confirmAction) return;
+    const { user } = confirmAction;
+
+    setIsConfirmProcessing(true);
+    try {
+      if (confirmAction.type === "delete") {
+        await deleteUser(user.id);
+        await loadUsers();
+        setSelectedUser(null);
+        setConfirmAction(null);
+        return;
+      }
+
+      const nextIsActive = user.status !== "active";
+      if (dataSource === "mock") {
+        setUsers((current) =>
+          current.map((item) =>
+            item.id === user.id ? { ...item, status: nextIsActive ? "active" : "locked" } : item,
+          ),
+        );
+        setConfirmAction(null);
+        return;
+      }
+
+      setStatusUpdatingId(user.id);
+      await updateUserStatus(user.id, nextIsActive);
+      await loadUsers();
+      setConfirmAction(null);
+    } catch (err: any) {
+      const fallbackMessage = confirmAction.type === "delete"
+        ? "Không thể xóa người dùng."
+        : "Khong the cap nhat trang thai nguoi dung.";
+      const message = err?.message || fallbackMessage;
+      if (/403|forbidden/i.test(message)) {
+        alert(confirmAction.type === "delete"
+          ? "Bạn không có quyền xóa người dùng này."
+          : "Ban khong co quyen cap nhat trang thai nguoi dung nay.");
+      } else {
+        alert(message);
+      }
+    } finally {
+      setStatusUpdatingId(null);
+      setIsConfirmProcessing(false);
+    }
+  };
+
+  const confirmTitle = confirmAction?.type === "delete"
+    ? "Xóa người dùng"
+    : confirmAction?.user.status === "active"
+      ? "Inactive user"
+      : "Active user";
+  const confirmMessage = !confirmAction
+    ? ""
+    : confirmAction.type === "delete"
+      ? `Bạn có chắc chắn muốn xóa người dùng "${confirmAction.user.name}"?`
+      : confirmAction.user.status === "active"
+        ? `Bạn có chắc chắn muốn inactive user "${confirmAction.user.name}"?`
+        : `Bạn có chắc chắn muốn active user "${confirmAction.user.name}"?`;
+  const confirmLabel = confirmAction?.type === "delete"
+    ? "Xóa"
+    : confirmAction?.user.status === "active"
+      ? "Inactive"
+      : "Active";
 
   return (
     <div className="space-y-5 max-w-[1440px] mx-auto">
@@ -101,6 +252,9 @@ export default function Users() {
           <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Người dùng</h1>
           <p className="text-sm text-on-surface-variant mt-0.5">{users.length} người dùng {sourceLabel(dataSource)}</p>
         </div>
+        <button onClick={handleOpenCreate} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all self-start">
+          <Plus className="w-4 h-4" /> Thêm người dùng
+        </button>
       </motion.div>
 
       <div className="flex flex-col sm:flex-row gap-3">
@@ -112,12 +266,26 @@ export default function Users() {
           {[
             { value: "all", label: "Tất cả" },
             { value: "customer", label: "Khách hàng" },
-            { value: "admin", label: "Admin" },
           ].map((filter) => (
             <button
               key={filter.value}
-              onClick={() => setRoleFilter(filter.value as "all" | AdminUser["role"])}
+              onClick={() => setRoleFilter(filter.value as "all" | "customer")}
               className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${roleFilter === filter.value ? "bg-primary text-white shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
+            >
+              {filter.label}
+            </button>
+          ))}
+        </div>
+        <div className="flex bg-surface-container-lowest border border-outline-variant/30 rounded-xl p-0.5 self-start">
+          {[
+            { value: "all", label: "Tat ca" },
+            { value: "active", label: "Active" },
+            { value: "locked", label: "Inactive" },
+          ].map((filter) => (
+            <button
+              key={filter.value}
+              onClick={() => setStatusFilter(filter.value as "all" | AdminUser["status"])}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition-all ${statusFilter === filter.value ? "bg-primary text-white shadow-sm" : "text-on-surface-variant hover:text-primary"}`}
             >
               {filter.label}
             </button>
@@ -132,7 +300,7 @@ export default function Users() {
       {!isLoading && !error && (
         <div className="bg-surface-container-lowest rounded-2xl border border-outline-variant/20 overflow-hidden">
           <div className="overflow-x-auto">
-            <table className="w-full text-sm min-w-[800px]">
+            <table className="w-full text-sm min-w-[860px]">
               <thead>
                 <tr className="text-left text-on-surface-variant/70 text-xs border-b border-outline-variant/20 bg-surface-container-low/30">
                   <th className="px-5 py-3 font-semibold">Người dùng</th>
@@ -147,6 +315,8 @@ export default function Users() {
                 {filtered.map((user, index) => {
                   const role = roleMap[user.role];
                   const status = statusMap[user.status];
+                  const isStatusUpdating = statusUpdatingId === user.id;
+                  const isActive = user.status === "active";
 
                   return (
                     <motion.tr
@@ -180,7 +350,27 @@ export default function Users() {
                           <button onClick={() => setSelectedUser(user)} className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-primary transition-colors" title="Xem">
                             <Eye className="w-4 h-4" />
                           </button>
-                          <button onClick={() => handleDelete(user)} className="p-1.5 rounded-lg hover:bg-red-50 text-on-surface-variant hover:text-red-600 transition-colors" title="Xóa">
+                          <button onClick={() => handleOpenEdit(user)} className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-primary transition-colors" title="Sửa">
+                            <Edit2 className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => void handleToggleStatus(user)}
+                            disabled={isStatusUpdating || isCurrentUser(user)}
+                            className={`p-1.5 rounded-lg transition-colors disabled:opacity-40 disabled:cursor-not-allowed ${
+                              isActive
+                                ? "hover:bg-amber-50 text-on-surface-variant hover:text-amber-700"
+                                : "hover:bg-emerald-50 text-on-surface-variant hover:text-emerald-700"
+                            }`}
+                            title={isCurrentUser(user) ? "Khong the doi trang thai cua ban" : isActive ? "Inactive user" : "Active user"}
+                          >
+                            {isActive ? <Lock className="w-4 h-4" /> : <Unlock className="w-4 h-4" />}
+                          </button>
+                          <button
+                            onClick={() => handleDelete(user)}
+                            disabled={isCurrentUser(user)}
+                            className="p-1.5 rounded-lg hover:bg-red-50 text-on-surface-variant hover:text-red-600 transition-colors disabled:opacity-40 disabled:cursor-not-allowed"
+                            title={isCurrentUser(user) ? "Không thể tự xóa" : "Xóa"}
+                          >
                             <Trash2 className="w-4 h-4" />
                           </button>
                         </div>
@@ -188,6 +378,13 @@ export default function Users() {
                     </motion.tr>
                   );
                 })}
+                {filtered.length === 0 && (
+                  <tr>
+                    <td colSpan={6} className="px-5 py-10 text-center text-on-surface-variant text-sm">
+                      Không có người dùng nào.
+                    </td>
+                  </tr>
+                )}
               </tbody>
             </table>
           </div>
@@ -203,6 +400,24 @@ export default function Users() {
       )}
 
       <UserDetailDrawer orders={[]} user={selectedUser} onClose={() => setSelectedUser(null)} />
+      <UserFormModal
+        user={editingUser}
+        open={showForm}
+        isSubmitting={isSubmitting}
+        onClose={() => { setShowForm(false); setEditingUser(null); }}
+        onSubmit={handleSubmit}
+      />
+      <AdminConfirmModal
+        open={Boolean(confirmAction)}
+        title={confirmTitle}
+        message={confirmMessage}
+        confirmLabel={confirmLabel}
+        isProcessing={isConfirmProcessing}
+        onClose={() => {
+          if (!isConfirmProcessing) setConfirmAction(null);
+        }}
+        onConfirm={handleConfirmAction}
+      />
     </div>
   );
 }

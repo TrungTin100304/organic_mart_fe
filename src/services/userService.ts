@@ -1,5 +1,13 @@
 import type { User } from "../types/user";
-import { apiRequest, normalizeRole } from "./apiClient";
+import { apiRequest, isAdminRole, normalizeRole } from "./apiClient";
+
+const persistRole = (role: string) => {
+  try {
+    localStorage.setItem("userRole", normalizeRole(role));
+  } catch {
+    // ignore
+  }
+};
 
 export const normalizeUser = (user: User): User => ({
   ...user,
@@ -9,7 +17,11 @@ export const normalizeUser = (user: User): User => ({
 
 export const getCurrentUser = async (): Promise<User> => {
   const user = await apiRequest<User>("/users/me", { requireAuth: true });
-  return normalizeUser(user);
+  const normalized = normalizeUser(user);
+  if (normalized.role) {
+    persistRole(normalized.role);
+  }
+  return normalized;
 };
 
 export const updateCurrentUser = async (data: FormData): Promise<User> => {
@@ -20,3 +32,5 @@ export const updateCurrentUser = async (data: FormData): Promise<User> => {
   });
   return normalizeUser(user);
 };
+
+export { isAdminRole };

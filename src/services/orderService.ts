@@ -1,24 +1,31 @@
 import { apiRequest, toJsonBody } from "./apiClient";
 
+export type DeliveryMethod = "STANDARD" | "EXPRESS" | "SCHEDULED";
+export type OrderStatus =
+  | "PENDING" | "CONFIRMED" | "PREPARING" | "READY_FOR_DELIVERY" | "DELIVERING"
+  | "DELIVERED" | "CANCELLED" | "REFUNDED";
+
+export interface CreateOrderItem {
+  productId: number;
+  quantity: number;
+}
+
+export interface CreateOrderRequest {
+  addressId: number;
+  promotionCode?: string;
+  note?: string;
+  items: CreateOrderItem[];
+  // Internal delivery
+  deliveryMethod: DeliveryMethod;
+  deliveryDate?: string;
+  deliverySlotId?: number;
+}
+
 export interface ShippingRate {
   providerId: number;
   providerName: string;
   fee: number;
   estimatedDays: string;
-}
-
-export interface OrderItemPayload {
-  productId: number;
-  quantity: number;
-}
-
-export interface CreateOrderPayload {
-  addressId: number;
-  shippingProviderId: number;
-  shippingFee: number;
-  promotionCode: string;
-  note: string;
-  items: OrderItemPayload[];
 }
 
 export interface OrderDetail {
@@ -45,6 +52,7 @@ export interface OrderStatusHistory {
   createdAt: string;
 }
 
+// Extended Order with all detail fields (returned by /orders/:id)
 export interface Order {
   id: number;
   orderCode: string;
@@ -67,9 +75,21 @@ export interface Order {
   statusHistories: OrderStatusHistory[];
   createdAt: string;
   updatedAt: string;
+  // Internal delivery
+  deliveryMethod?: DeliveryMethod | null;
+  deliveryDate?: string | null;
+  deliverySlotId?: number | null;
+  deliverySlotSnapshot?: string | null;
+  buildingCodeSnapshot?: string | null;
+  buildingNameSnapshot?: string | null;
+  floorSnapshot?: string | null;
+  apartmentNumberSnapshot?: string | null;
+  recipientNameSnapshot?: string | null;
+  recipientPhoneSnapshot?: string | null;
+  deliveryNoteSnapshot?: string | null;
 }
 
-// Paginated order list response
+// Paginated order list response (old style — kept for backwards compat)
 export interface OrderListItem {
   id: number;
   orderCode: string;
@@ -105,6 +125,26 @@ export interface PaginatedOrders {
   totalPages: number;
 }
 
+// New-style summary (used by new checkout + account page)
+export interface UserOrderSummary {
+  id: number;
+  orderCode: string;
+  status: OrderStatus;
+  paymentMethod: "COD" | "VIETQR";
+  totalAmount: number;
+  itemCount: number;
+  createdAt: string;
+  updatedAt?: string;
+}
+
+export interface OrderPage<T> {
+  content: T[];
+  totalElements: number;
+  totalPages: number;
+  size: number;
+  number: number;
+}
+
 export const getShipmentRates = (params: {
   province: string;
   district: string;
@@ -123,17 +163,27 @@ export const getShipmentRates = (params: {
   });
 };
 
-export const createOrder = (payload: CreateOrderPayload) =>
+export const createOrder = (data: CreateOrderRequest) =>
   apiRequest<Order>("/orders", {
     method: "POST",
-    body: toJsonBody(payload),
+    body: toJsonBody(data),
     requireAuth: true,
   });
 
-export const getMyOrders = (page = 0, size = 10) =>
-  apiRequest<PaginatedOrders>(`/orders/me?page=${page}&size=${size}`, {
-    requireAuth: true,
-  });
+export const getMyOrders = (
+  params: { page?: number; size?: number } = {},
+  baseUrl?: string,
+) => {
+  const query = new URLSearchParams();
+  query.set("page", String(params.page ?? 0));
+  query.set("size", String(params.size ?? 10));
+
+  return apiRequest<OrderPage<UserOrderSummary>>(
+    `/orders/me?${query}`,
+    { requireAuth: true },
+    baseUrl,
+  );
+};
 
 export const getOrderDetail = (orderId: number) =>
   apiRequest<Order>(`/orders/${orderId}`, {

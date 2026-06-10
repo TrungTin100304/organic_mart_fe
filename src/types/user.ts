@@ -1,5 +1,8 @@
 // Types for user domain
 export type Role = 'ROLE_USER' | 'ROLE_ADMIN';
+
+export type DietType = 'NORMAL' | 'VEGETARIAN' | 'VEGAN' | 'KETO' | 'PALEO' | 'GLUTEN_FREE';
+
 export interface Address {
   id?: number;
   label: 'HOME' | 'WORK' | 'OTHER';
@@ -12,6 +15,13 @@ export interface Address {
   city?: string;
   isDefault: boolean;
   createdAt?: string;
+  // Internal delivery fields
+  buildingId?: number;
+  buildingCode?: string;
+  buildingName?: string;
+  floor?: string;
+  apartmentNumber?: string;
+  deliveryNote?: string;
 }
 
 export interface Allergen {
@@ -29,11 +39,20 @@ export interface OrderItemSummary {
 export interface OrderSummary {
   id: number;
   orderCode: string;
-  date: string; // ISO string or human-friendly
+  date: string;
   status: 'PENDING' | 'PROCESSING' | 'OUT_FOR_DELIVERY' | 'DELIVERED' | 'CANCELLED' | 'Delivered' | 'Out for Delivery' | 'Processing' | 'Pending' | 'Cancelled' | string;
   total: number;
   itemCount?: number;
   items?: OrderItemSummary[];
+}
+
+export interface UserPreference {
+  heightCm?: number;
+  weightKg?: number;
+  bmi?: number;
+  healthGoal?: string;
+  dietType?: DietType;
+  dailyCalorieTarget?: number;
 }
 
 export interface User {
@@ -49,6 +68,12 @@ export interface User {
   createdAt?: string;
   updatedAt?: string;
   addresses?: Address[];
-  recentOrders?: OrderSummary[];
   allergens?: Allergen[];
+  // Inline preference fields (populated from /users/me)
+  heightCm?: number;
+  weightKg?: number;
+  bmi?: number;
+  healthGoal?: string;
+  dietType?: DietType;
+  dailyCalorieTarget?: number;
 }

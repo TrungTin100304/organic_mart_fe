@@ -20,3 +20,9 @@ View your app in AI Studio: https://ai.studio/apps/24ff362a-5433-4ddc-8caf-23cf2
    For a deployed frontend, set `VITE_API_BASE_URL` to the deployed backend API URL and allow the frontend domain in backend CORS.
 3. Run the app:
    `npm run dev`
+
+## Checkout payment
+
+- VietQR uses the backend endpoints `/payments/vietqr` and `/payments/vietqr/{id}`.
+- Set `VITE_ENABLE_SEPAY_MOCK=true` only in local development to show the temporary SePay confirmation button.
+- Keep `VITE_ENABLE_SEPAY_MOCK=false` in production until a real SePay webhook confirms payments.
