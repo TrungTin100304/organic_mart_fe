@@ -1,55 +1,100 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
-import { AlertTriangle, Search } from "lucide-react";
-import { getInventoryBatches, type InventoryBatch } from "../../services/inventoryBatchService";
+import { AlertTriangle, PackagePlus, Search } from "lucide-react";
+import { useSearchParams } from "react-router-dom";
+import {
+  createInventoryBatch,
+  getInventoryBatches,
+  type InventoryBatch,
+  type InventoryBatchRequest,
+} from "../../services/inventoryBatchService";
+import { getProducts } from "../../services/productService";
+import { getFarms, type Farm } from "../../services/farmService";
+import type { Product } from "../../types";
+import InventoryBatchFormModal from "../components/InventoryBatchFormModal";
 import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
-import { getMockInventoryBatches } from "../utils/mockAdapters";
+import { getMockAdminProducts, getMockInventoryBatches } from "../utils/mockAdapters";
+import { ADMIN_FARMS } from "../mocks/farms";
+import { buildInventoryProductStock } from "../utils/inventoryEntry";
 
 export default function Inventory() {
+  const [searchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [batches, setBatches] = useState<InventoryBatch[]>([]);
+  const [products, setProducts] = useState<Product[]>([]);
+  const [farms, setFarms] = useState<Farm[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState("");
   const [dataSource, setDataSource] = useState<AdminDataSource>("api");
   const [dataNotice, setDataNotice] = useState("");
+  const [showEntryForm, setShowEntryForm] = useState(false);
+  const [entryProductId, setEntryProductId] = useState<string | null>(null);
+
+  const loadData = async () => {
+    setIsLoading(true);
+    setError("");
+    setDataNotice("");
+    try {
+      const [batchResult, productResult, farmResult] = await Promise.all([
+        loadAdminDataWithFallback(getInventoryBatches, getMockInventoryBatches),
+        loadAdminDataWithFallback<Product[]>(
+          async () => (await getProducts({ page: 0, size: 500 })).content,
+          () => getMockAdminProducts() as unknown as Product[],
+        ),
+        loadAdminDataWithFallback(getFarms, () => ADMIN_FARMS),
+      ]);
+      setBatches(batchResult.data);
+      setProducts(productResult.data);
+      setFarms(farmResult.data);
+      setDataSource(batchResult.source);
+      setDataNotice(
+        [batchResult.error, productResult.error, farmResult.error].filter(Boolean).join(" ") ||
+          ([batchResult.source, productResult.source, farmResult.source].includes("mock")
+            ? "Đang hiển thị dữ liệu mẫu."
+            : ""),
+      );
+    } catch (err: any) {
+      setError(err?.message || "Không thể tải tồn kho.");
+    } finally {
+      setIsLoading(false);
+    }
+  };
 
   useEffect(() => {
-    let mounted = true;
-    loadAdminDataWithFallback(getInventoryBatches, getMockInventoryBatches)
-      .then((result) => {
-        if (!mounted) return;
-        setBatches(result.data);
-        setDataSource(result.source);
-        setDataNotice(result.error || (result.source === "mock" ? "Đang hiển thị dữ liệu mẫu." : ""));
-      })
-      .catch((err: any) => {
-        if (mounted) setError(err?.message || "Không thể tải tồn kho.");
-      })
-      .finally(() => {
-        if (mounted) setIsLoading(false);
-      });
-    return () => {
-      mounted = false;
-    };
+    void loadData();
   }, []);
 
-  const productStock = useMemo(() => {
-    const map = new Map<number, { productId: number; productName: string; quantity: number; batchCount: number; expiredCount: number }>();
-    batches.forEach((batch) => {
-      const current = map.get(batch.productId) || {
-        productId: batch.productId,
-        productName: batch.productName,
-        quantity: 0,
-        batchCount: 0,
-        expiredCount: 0,
-      };
-      current.quantity += Number(batch.quantityRemaining || 0);
-      current.batchCount += 1;
-      current.expiredCount += batch.expired ? 1 : 0;
-      map.set(batch.productId, current);
-    });
-    return [...map.values()].sort((a, b) => a.quantity - b.quantity);
-  }, [batches]);
+  useEffect(() => {
+    const productId = searchParams.get("productId");
+    if (!productId) return;
+    setEntryProductId(productId);
+    setShowEntryForm(true);
+  }, [searchParams]);
+
+  const productStock = useMemo(
+    () => buildInventoryProductStock(products, batches),
+    [products, batches],
+  );
+
+  const openEntryForm = (productId?: string | number) => {
+    setEntryProductId(productId === undefined ? null : String(productId));
+    setShowEntryForm(true);
+  };
+
+  const handleCreateBatch = async (payload: InventoryBatchRequest) => {
+    setIsSubmitting(true);
+    try {
+      await createInventoryBatch(payload);
+      setShowEntryForm(false);
+      setEntryProductId(null);
+      await loadData();
+    } catch (err: any) {
+      alert(err?.message || "Không thể nhập kho sản phẩm.");
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
 
   const filtered = productStock.filter((item) => !search || item.productName.toLowerCase().includes(search.toLowerCase()));
   const outOfStock = productStock.filter((item) => item.quantity === 0).length;
@@ -57,9 +102,14 @@ export default function Inventory() {
 
   return (
     <div className="space-y-5 max-w-[1440px] mx-auto">
-      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }}>
-        <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Quản lý tồn kho</h1>
-        <p className="text-sm text-on-surface-variant mt-0.5">{lowStock} sản phẩm cần bổ sung, {sourceLabel(dataSource)}</p>
+      <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+        <div>
+          <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Quản lý tồn kho</h1>
+          <p className="text-sm text-on-surface-variant mt-0.5">{lowStock} sản phẩm cần bổ sung, {sourceLabel(dataSource)}</p>
+        </div>
+        <button onClick={() => openEntryForm()} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all self-start">
+          <PackagePlus className="w-4 h-4" /> Nhập kho
+        </button>
       </motion.div>
 
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
@@ -97,6 +147,7 @@ export default function Inventory() {
                   <th className="px-5 py-3 font-semibold">Tồn kho</th>
                   <th className="px-5 py-3 font-semibold">Lô hết hạn</th>
                   <th className="px-5 py-3 font-semibold">Trạng thái</th>
+                  <th className="px-5 py-3 font-semibold text-right">Thao tác</th>
                 </tr>
               </thead>
               <tbody>
@@ -118,6 +169,14 @@ export default function Inventory() {
                         <span className="text-[11px] font-bold text-emerald-700">Đủ hàng</span>
                       )}
                     </td>
+                    <td className="px-5 py-3 text-right">
+                      <button
+                        onClick={() => openEntryForm(item.productId)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-primary/10 text-primary text-xs font-bold hover:bg-primary hover:text-white transition-colors"
+                      >
+                        <PackagePlus className="w-3.5 h-3.5" /> Nhập kho
+                      </button>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -125,6 +184,18 @@ export default function Inventory() {
           </div>
         </div>
       )}
+
+      <InventoryBatchFormModal
+        open={showEntryForm}
+        products={products}
+        farms={farms}
+        initialProductId={entryProductId}
+        isSubmitting={isSubmitting}
+        onClose={() => {
+          if (!isSubmitting) setShowEntryForm(false);
+        }}
+        onSubmit={handleCreateBatch}
+      />
     </div>
   );
 }

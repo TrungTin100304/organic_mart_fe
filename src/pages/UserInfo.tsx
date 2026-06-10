@@ -3,9 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import { ProfileCard } from '@/components/ProfileCard';
 import { useUser } from '@/hooks/useUser';
 import * as addressService from '@/services/addressService';
+import { getActiveBuildings, type ResidentialBuilding } from '@/services/buildingService';
 import * as allergenService from '@/services/allergenService';
-import { getMyOrders, getOrderDetail, type OrderListItem, type PaginatedOrders, type Order } from '@/services/orderService';
+import { getMyOrders, getOrderDetail, type UserOrderSummary } from '@/services/orderService';
 import type { Address, Allergen } from '@/types/user';
+import type { DietType as MealDietType } from '@/types/mealPlan';
+import { Scale, Target, Heart, X } from 'lucide-react';
 
 type OrderStatus = 'Tất cả' | 'Chờ xác nhận' | 'Đã xác nhận' | 'Đang xử lý' | 'Đã giao hàng' | 'Đã hủy' | 'Đã hoàn tiền';
 
@@ -28,11 +31,25 @@ const TABS = [
 
 type TabKey = (typeof TABS)[number]['key'];
 
+const ORDER_STATUS_LABELS: Record<string, string> = {
+  PENDING: 'Chờ xác nhận',
+  CONFIRMED: 'Đã xác nhận',
+  PREPARING: 'Đang chuẩn bị',
+  READY_FOR_DELIVERY: 'Sẵn sàng giao',
+  DELIVERING: 'Đang giao',
+  DELIVERED: 'Đã giao',
+  CANCELLED: 'Đã hủy',
+  REFUNDED: 'Đã hoàn tiền',
+};
+
 const UserInfoPage: React.FC = () => {
   const navigate = useNavigate();
-  const { user, isLoading, error, refetch } = useUser();
+  const { user, isLoading, error, refetch, updatePreference } = useUser();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [isAddressesLoading, setIsAddressesLoading] = useState(true);
+  const [orders, setOrders] = useState<UserOrderSummary[]>([]);
+  const [isOrdersLoading, setIsOrdersLoading] = useState(false);
+  const [ordersError, setOrdersError] = useState('');
 
   // Active sidebar tab
   const [activeTab, setActiveTab] = useState<TabKey>('profile');
@@ -48,11 +65,16 @@ const UserInfoPage: React.FC = () => {
   const [currentPage, setCurrentPage] = useState(1);
   const ORDERS_PER_PAGE = 5;
 
-  // Order list API state
-  const [orderList, setOrderList] = useState<OrderListItem[]>([]);
-  const [isOrdersLoading, setIsOrdersLoading] = useState(false);
-  const [ordersTotalPages, setOrdersTotalPages] = useState(1);
-  const [ordersTotalElements, setOrdersTotalElements] = useState(0);
+  // Health metrics / preference state
+  const [isMetricsModalOpen, setIsMetricsModalOpen] = useState(false);
+  const [metricsForm, setMetricsForm] = useState({
+    heightCm: '',
+    weightKg: '',
+    healthGoal: '',
+    dietType: 'NORMAL' as MealDietType | '',
+    dailyCalorieTarget: '',
+  });
+  const [isMetricsSubmitting, setIsMetricsSubmitting] = useState(false);
 
   // Profile Modal State
   const [isProfileModalOpen, setIsProfileModalOpen] = useState(false);
@@ -62,6 +84,8 @@ const UserInfoPage: React.FC = () => {
   // Address Modal State
   const [isAddressModalOpen, setIsAddressModalOpen] = useState(false);
   const [editingAddress, setEditingAddress] = useState<Address | null>(null);
+  const [addressToDeleteId, setAddressToDeleteId] = useState<number | string | null>(null);
+  const [buildings, setBuildings] = useState<ResidentialBuilding[]>([]);
   const [addressForm, setAddressForm] = useState<Omit<Address, 'id'>>({
     label: 'HOME',
     customLabel: '',
@@ -74,6 +98,7 @@ const UserInfoPage: React.FC = () => {
     isDefault: false,
   });
   const [isAddressSubmitting, setIsAddressSubmitting] = useState(false);
+  const [isAddressDeleting, setIsAddressDeleting] = useState(false);
 
   // Toast Notification State
   const [toasts, setToasts] = useState<Toast[]>([]);
@@ -81,7 +106,7 @@ const UserInfoPage: React.FC = () => {
   // Order Detail Modal State
   const [isOrderDetailOpen, setIsOrderDetailOpen] = useState(false);
   const [selectedOrderId, setSelectedOrderId] = useState<number | null>(null);
-  const [orderDetail, setOrderDetail] = useState<Order | null>(null);
+  const [orderDetail, setOrderDetail] = useState<Awaited<ReturnType<typeof getOrderDetail>> | null>(null);
   const [isOrderDetailLoading, setIsOrderDetailLoading] = useState(false);
 
   const showToast = (message: string, type: 'success' | 'error') => {
@@ -113,6 +138,12 @@ const UserInfoPage: React.FC = () => {
     }
   }, [user]);
 
+  useEffect(() => {
+    if (user && activeTab === 'orders') {
+      void loadOrders();
+    }
+  }, [activeTab, user]);
+
   const loadAddresses = async () => {
     setIsAddressesLoading(true);
     try {
@@ -139,6 +170,20 @@ const UserInfoPage: React.FC = () => {
     }
   };
 
+  const loadOrders = async () => {
+    setIsOrdersLoading(true);
+    setOrdersError('');
+    try {
+      const page = await getMyOrders({ page: currentPage - 1, size: ORDERS_PER_PAGE });
+      setOrders(page.content);
+    } catch (err: unknown) {
+      setOrders([]);
+      setOrdersError(err instanceof Error ? err.message : 'Không thể tải lịch sử mua hàng.');
+    } finally {
+      setIsOrdersLoading(false);
+    }
+  };
+
   const handleToggleAllergen = (id: number) => {
     if (!user) return;
     let updated: number[];
@@ -162,7 +207,6 @@ const UserInfoPage: React.FC = () => {
       return;
     }
 
-    // Validate no duplicates (case-insensitive check against current list of allergens)
     const isDuplicate = allergens.some(
       (a) => a.name.toLowerCase() === trimmedName.toLowerCase()
     );
@@ -174,16 +218,12 @@ const UserInfoPage: React.FC = () => {
     setIsAddingAllergen(true);
     try {
       const newAllergen = await allergenService.createAllergen(trimmedName);
-      
-      // Append returned allergen to the list
       setAllergens((prev) => [...prev, newAllergen]);
 
-      // Auto select the new allergen ID
       const updatedSelected = [...selectedAllergens, newAllergen.id];
       setSelectedAllergens(updatedSelected);
       localStorage.setItem(`user_allergens_${user.id}`, JSON.stringify(updatedSelected));
 
-      // Clear input field
       setNewAllergenName('');
       showToast('Thêm dị ứng mới thành công!', 'success');
     } catch (err: any) {
@@ -230,6 +270,10 @@ const UserInfoPage: React.FC = () => {
 
   // Address CRUD
   const handleOpenAddressModal = (addr?: Address) => {
+    getActiveBuildings()
+      .then(setBuildings)
+      .catch(() => setBuildings([]));
+
     if (addr) {
       setEditingAddress(addr);
       setAddressForm({
@@ -237,11 +281,17 @@ const UserInfoPage: React.FC = () => {
         customLabel: addr.customLabel || '',
         recipientName: addr.recipientName,
         recipientPhone: addr.recipientPhone,
-        fullAddress: addr.fullAddress,
+        fullAddress: addr.fullAddress || '',
         ward: addr.ward || '',
         district: addr.district || '',
         city: addr.city || '',
         isDefault: addr.isDefault,
+        buildingId: addr.buildingId,
+        buildingCode: addr.buildingCode,
+        buildingName: addr.buildingName,
+        floor: addr.floor || '',
+        apartmentNumber: addr.apartmentNumber || '',
+        deliveryNote: addr.deliveryNote || '',
       });
     } else {
       setEditingAddress(null);
@@ -249,12 +299,18 @@ const UserInfoPage: React.FC = () => {
         label: 'HOME',
         customLabel: '',
         recipientName: user?.fullName || '',
-        recipientPhone: user?.phone || '',
+        recipientPhone: user?.phoneNumber || user?.phone || '',
         fullAddress: '',
         ward: '',
         district: '',
         city: '',
         isDefault: addresses.length === 0,
+        buildingId: undefined,
+        buildingCode: undefined,
+        buildingName: undefined,
+        floor: '',
+        apartmentNumber: '',
+        deliveryNote: '',
       });
     }
     setIsAddressModalOpen(true);
@@ -270,13 +326,15 @@ const UserInfoPage: React.FC = () => {
       showToast('Số điện thoại người nhận không được để trống', 'error');
       return;
     }
-    if (!addressForm.fullAddress.trim()) {
-      showToast('Địa chỉ chi tiết không được để trống', 'error');
-      return;
-    }
-    if (!addressForm.city?.trim()) {
-      showToast('Tỉnh/Thành phố không được để trống', 'error');
-      return;
+    if (addressForm.buildingId) {
+      if (!addressForm.floor?.trim()) {
+        showToast('Vui lòng nhập số tầng', 'error');
+        return;
+      }
+      if (!addressForm.apartmentNumber?.trim()) {
+        showToast('Vui lòng nhập số căn hộ', 'error');
+        return;
+      }
     }
 
     setIsAddressSubmitting(true);
@@ -300,14 +358,47 @@ const UserInfoPage: React.FC = () => {
     }
   };
 
-  const handleDeleteAddress = async (id: number | string) => {
-    if (!window.confirm('Bạn có chắc chắn muốn xoá địa chỉ này?')) return;
+  const handleDeleteAddress = (id: number | string) => {
+    setAddressToDeleteId(id);
+  };
+
+  const handleConfirmDeleteAddress = async () => {
+    if (addressToDeleteId === null) return;
+    setIsAddressDeleting(true);
     try {
-      await addressService.deleteAddress(id);
+      await addressService.deleteAddress(addressToDeleteId);
       showToast('Đã xoá địa chỉ', 'success');
+      setAddressToDeleteId(null);
       await loadAddresses();
     } catch (err: any) {
       showToast(err.message || 'Không thể xoá địa chỉ', 'error');
+    } finally {
+      setIsAddressDeleting(false);
+    }
+  };
+
+  const handleMetricsSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    const height = parseFloat(metricsForm.heightCm);
+    const weight = parseFloat(metricsForm.weightKg);
+    if (!height || height <= 0) { showToast('Chiều cao phải lớn hơn 0', 'error'); return; }
+    if (!weight || weight <= 0) { showToast('Cân nặng phải lớn hơn 0', 'error'); return; }
+    setIsMetricsSubmitting(true);
+    try {
+      await updatePreference({
+        heightCm: height,
+        weightKg: weight,
+        healthGoal: metricsForm.healthGoal || undefined,
+        dietType: (metricsForm.dietType as MealDietType) || undefined,
+        dailyCalorieTarget: metricsForm.dailyCalorieTarget ? parseInt(metricsForm.dailyCalorieTarget) : undefined,
+      });
+      showToast('Cập nhật chỉ số sức khỏe thành công!', 'success');
+      refetch();
+      setIsMetricsModalOpen(false);
+    } catch (err: any) {
+      showToast(err.message || 'Không thể lưu chỉ số sức khỏe', 'error');
+    } finally {
+      setIsMetricsSubmitting(false);
     }
   };
 
@@ -329,26 +420,13 @@ const UserInfoPage: React.FC = () => {
     navigate("/login", { replace: true });
   };
 
-  const mapStatusToFilter = (status: string): OrderStatus => {
-    const map: Record<string, OrderStatus> = {
-      PENDING: 'Chờ xác nhận',
-      CONFIRMED: 'Đã xác nhận',
-      PROCESSING: 'Đang xử lý',
-      SHIPPED: 'Đã giao hàng',
-      DELIVERED: 'Đã giao hàng',
-      CANCELLED: 'Đã hủy',
-      REFUNDED: 'Đã hoàn tiền',
-    };
-    return map[status] ?? 'Chờ xác nhận';
-  };
-
   // Get display badge info for a backend status
   const getStatusBadge = (status: string) => {
     const badges: Record<string, { bg: string; label: string }> = {
       PENDING:      { bg: 'bg-yellow-100 text-yellow-800',                               label: 'CHỜ XÁC NHẬN'  },
-      CONFIRMED:    { bg: 'bg-cyan-100 text-cyan-800',                                     label: 'ĐÃ XÁC NHẬN'   },
-      PROCESSING:   { bg: 'bg-blue-100 text-blue-800',                                     label: 'ĐANG XỬ LÝ'    },
-      SHIPPED:      { bg: 'bg-secondary-container text-on-secondary-container',             label: 'ĐÃ GIAO HÀNG' },
+      CONFIRMED:    { bg: 'bg-cyan-100 text-cyan-800',                                    label: 'ĐÃ XÁC NHẬN'   },
+      PREPARING:    { bg: 'bg-blue-100 text-blue-800',                                     label: 'ĐANG CHUẨN BỊ'  },
+      DELIVERING:   { bg: 'bg-secondary-container text-on-secondary-container',            label: 'ĐANG GIAO'      },
       DELIVERED:    { bg: 'bg-surface-container-high text-on-surface-variant',             label: 'ĐÃ GIAO HÀNG' },
       CANCELLED:    { bg: 'bg-error-container text-on-error-container',                    label: 'ĐÃ HỦY'       },
       REFUNDED:     { bg: 'bg-orange-100 text-orange-800',                                 label: 'ĐÃ HOÀN TIỀN'  },
@@ -362,7 +440,7 @@ const UserInfoPage: React.FC = () => {
       'Tất cả':         null,
       'Chờ xác nhận':  'PENDING',
       'Đã xác nhận':   'CONFIRMED',
-      'Đang xử lý':     'PROCESSING',
+      'Đang xử lý':    'PREPARING',
       'Đã giao hàng':  'DELIVERED',
       'Đã hủy':        'CANCELLED',
       'Đã hoàn tiền':  'REFUNDED',
@@ -370,24 +448,10 @@ const UserInfoPage: React.FC = () => {
     return map[filter] ?? null;
   };
 
-  const loadMyOrders = async (page: number) => {
-    setIsOrdersLoading(true);
-    try {
-      const data: PaginatedOrders = await getMyOrders(page - 1, ORDERS_PER_PAGE);
-      setOrderList(data.content);
-      setOrdersTotalPages(data.totalPages);
-      setOrdersTotalElements(data.totalElements);
-    } catch (err: any) {
-      showToast(err.message || 'Không thể tải danh sách đơn hàng', 'error');
-    } finally {
-      setIsOrdersLoading(false);
-    }
-  };
-
   // Load orders whenever filter or page changes on the orders tab
   useEffect(() => {
     if (activeTab === 'orders') {
-      loadMyOrders(currentPage);
+      void loadOrders();
     }
   }, [activeTab, currentPage, orderStatusFilter]);
 
@@ -397,7 +461,7 @@ const UserInfoPage: React.FC = () => {
     setIsOrderDetailLoading(true);
     setIsOrderDetailOpen(true);
     try {
-      const detail: Order = await getOrderDetail(orderId);
+      const detail = await getOrderDetail(orderId);
       setOrderDetail(detail);
     } catch (err: any) {
       showToast(err.message || 'Không thể tải chi tiết đơn hàng', 'error');
@@ -423,8 +487,6 @@ const UserInfoPage: React.FC = () => {
   }
 
   if (!user) return null;
-
-  const recentOrders = user.recentOrders || [];
 
   return (
     <main className="pt-24 pb-12 px-margin-mobile md:px-margin-desktop max-w-container-max mx-auto font-sans">
@@ -577,6 +639,77 @@ const UserInfoPage: React.FC = () => {
                   </form>
                 </div>
               </section>
+
+              {/* Health Metrics Section */}
+              <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
+                <div className="flex flex-col mb-6">
+                  <h3 className="font-headline-md text-headline-md text-primary mb-1">Chỉ số sức khỏe</h3>
+                  <p className="text-on-surface-variant text-body-md">
+                    Cập nhật chiều cao, cân nặng và mục tiêu calo hàng ngày để nhận thực đơn phù hợp với cơ thể bạn.
+                  </p>
+                </div>
+
+                {user.heightCm && user.weightKg && user.bmi ? (
+                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
+                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <Scale className="w-4 h-4 text-on-surface-variant" />
+                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Chiều cao</span>
+                      </div>
+                      <p className="text-xl font-bold text-on-surface">{user.heightCm}</p>
+                      <p className="text-xs text-on-surface-variant">cm</p>
+                    </div>
+                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <Scale className="w-4 h-4 text-on-surface-variant" />
+                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Cân nặng</span>
+                      </div>
+                      <p className="text-xl font-bold text-on-surface">{user.weightKg}</p>
+                      <p className="text-xs text-on-surface-variant">kg</p>
+                    </div>
+                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">BMI</span>
+                      </div>
+                      <p className={`text-xl font-bold ${user.bmi < 18.5 || user.bmi >= 25 ? 'text-red-500' : user.bmi >= 23 ? 'text-amber-500' : 'text-green-600'}`}>
+                        {user.bmi}
+                      </p>
+                      <p className="text-xs text-on-surface-variant">
+                        {user.bmi < 18.5 ? 'Thiếu cân' : user.bmi < 23 ? 'Bình thường' : user.bmi < 25 ? 'Thừa cân' : 'Béo phì'}
+                      </p>
+                    </div>
+                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
+                      <div className="flex items-center justify-center gap-2 mb-1">
+                        <Target className="w-4 h-4 text-on-surface-variant" />
+                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Calo/ngày</span>
+                      </div>
+                      <p className="text-xl font-bold text-on-surface">{user.dailyCalorieTarget ?? '—'}</p>
+                      <p className="text-xs text-on-surface-variant">kcal</p>
+                    </div>
+                  </div>
+                ) : (
+                  <p className="text-on-surface-variant text-body-md mb-4">
+                    Bạn chưa nhập chỉ số sức khỏe. Cập nhật ngay để nhận thực đơn tốt nhất!
+                  </p>
+                )}
+
+                <button
+                  onClick={() => {
+                    setMetricsForm({
+                      heightCm: user.heightCm ? String(user.heightCm) : '',
+                      weightKg: user.weightKg ? String(user.weightKg) : '',
+                      healthGoal: user.healthGoal || '',
+                      dietType: (user.dietType as MealDietType) || '',
+                      dailyCalorieTarget: user.dailyCalorieTarget ? String(user.dailyCalorieTarget) : '',
+                    });
+                    setIsMetricsModalOpen(true);
+                  }}
+                  className="px-6 py-2.5 bg-primary text-white rounded-xl font-bold hover:bg-primary/95 transition-all active:scale-95 shadow-sm flex items-center gap-2"
+                >
+                  <Heart className="w-4 h-4" />
+                  {user.heightCm ? 'Cập nhật chỉ số' : 'Nhập chỉ số sức khỏe'}
+                </button>
+              </section>
             </div>
           )}
 
@@ -622,11 +755,18 @@ const UserInfoPage: React.FC = () => {
                                   {addr.recipientName} ({addr.recipientPhone})
                                 </p>
                                 <p className="text-on-surface-variant font-body-md text-body-md leading-relaxed">
-                                  {addr.fullAddress}
+                                  {addr.buildingId && addr.buildingCode
+                                    ? `Căn hộ ${addr.apartmentNumber || '?'}, tầng ${addr.floor || '?'}, tòa ${addr.buildingCode}`
+                                    : addr.fullAddress}
                                   {addr.ward && `, ${addr.ward}`}
                                   {addr.district && `, ${addr.district}`}
                                   {addr.city && `, ${addr.city}`}
                                 </p>
+                                {addr.buildingId && addr.buildingName && (
+                                  <p className="text-sm text-primary font-semibold">
+                                    {addr.buildingName}
+                                  </p>
+                                )}
                                 <div className="pt-2 flex gap-4 border-t border-outline-variant/30">
                                   <button
                                     onClick={() => handleOpenAddressModal(addr)}
@@ -678,7 +818,7 @@ const UserInfoPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2 text-on-surface-variant text-body-md">
                     <span className="material-symbols-outlined text-[18px]">info</span>
-                    <span>{ordersTotalElements} đơn hàng</span>
+                    <span>{orders.length} đơn hàng</span>
                   </div>
                 </div>
 
@@ -708,7 +848,7 @@ const UserInfoPage: React.FC = () => {
                     <div className="w-10 h-10 border-3 border-primary border-t-transparent rounded-full animate-spin mb-4"></div>
                     <p className="text-on-surface-variant font-medium">Đang tải danh sách đơn hàng...</p>
                   </div>
-                ) : orderList.length === 0 ? (
+                ) : orders.length === 0 ? (
                   /* Empty State */
                   <div className="flex flex-col items-center justify-center py-20 bg-surface-container-lowest border border-outline-variant rounded-2xl text-center">
                     <span className="material-symbols-outlined text-[48px] text-outline mb-3">receipt_long</span>
@@ -730,12 +870,12 @@ const UserInfoPage: React.FC = () => {
                   <>
                     {/* Order Cards */}
                     <div className="space-y-4">
-                      {orderList.map((order) => {
+                      {orders.map((order) => {
                         const badge = getStatusBadge(order.status);
                         const isCancelled = order.status === 'CANCELLED';
-                        const isShipped = order.status === 'SHIPPED';
                         const isDelivered = order.status === 'DELIVERED';
                         const isRefunded = order.status === 'REFUNDED';
+                        const isDelivering = order.status === 'DELIVERING';
                         const displayDate = new Date(order.createdAt).toLocaleDateString('vi-VN');
                         const displayTime = new Date(order.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' });
 
@@ -759,7 +899,7 @@ const UserInfoPage: React.FC = () => {
                                 </span>
                               </div>
                               <div className="text-right">
-                                {isShipped && (
+                                {isDelivering && (
                                   <>
                                     <p className="text-body-md text-on-surface-variant">Dự kiến giao:</p>
                                     <p className="font-label-lg text-primary">Hôm nay, 14:00 - 16:00</p>
@@ -785,7 +925,7 @@ const UserInfoPage: React.FC = () => {
                                 </div>
                                 <div className="space-y-1">
                                   <p className="font-label-lg font-bold text-on-surface">
-                                    {order.itemCount} {order.itemCount === 1 ? 'sản phẩm' : 'sản phẩm'}
+                                    {order.itemCount} sản phẩm
                                   </p>
                                   <p className="text-body-md text-on-surface-variant">
                                     Mã đơn: <span className="font-semibold">{order.orderCode}</span>
@@ -824,7 +964,7 @@ const UserInfoPage: React.FC = () => {
                     </div>
 
                     {/* Pagination */}
-                    {ordersTotalPages > 1 && (
+                    {orders.length >= ORDERS_PER_PAGE && (
                       <div className="flex justify-center items-center gap-2 pt-4">
                         <button
                           onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -833,22 +973,9 @@ const UserInfoPage: React.FC = () => {
                         >
                           <span className="material-symbols-outlined">chevron_left</span>
                         </button>
-                        {Array.from({ length: ordersTotalPages }, (_, i) => i + 1).map((page) => (
-                          <button
-                            key={page}
-                            onClick={() => setCurrentPage(page)}
-                            className={`w-10 h-10 rounded-full font-bold font-label-lg transition-all cursor-pointer ${
-                              currentPage === page
-                                ? 'bg-primary text-white shadow-sm'
-                                : 'border border-outline-variant hover:bg-surface-variant'
-                            }`}
-                          >
-                            {page}
-                          </button>
-                        ))}
                         <button
-                          onClick={() => setCurrentPage((p) => Math.min(ordersTotalPages, p + 1))}
-                          disabled={currentPage === ordersTotalPages}
+                          onClick={() => setCurrentPage((p) => Math.min(Math.ceil(orders.length / ORDERS_PER_PAGE), p + 1))}
+                          disabled={orders.length < ORDERS_PER_PAGE}
                           className="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-variant transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                         >
                           <span className="material-symbols-outlined">chevron_right</span>
@@ -947,7 +1074,7 @@ const UserInfoPage: React.FC = () => {
               </button>
             </div>
             <form onSubmit={handleAddressSubmit} className="space-y-4">
-              {/* Type selector (HOME, WORK, OTHER) */}
+              {/* Type selector */}
               <div className="flex flex-col gap-2">
                 <label className="text-label-lg font-bold text-on-surface-variant">Loại địa chỉ</label>
                 <div className="flex gap-2">
@@ -1011,49 +1138,127 @@ const UserInfoPage: React.FC = () => {
               </div>
 
               <div className="flex flex-col gap-1">
-                <label className="text-label-lg font-bold text-on-surface-variant">Địa chỉ chi tiết *</label>
-                <input
-                  type="text"
-                  required
-                  value={addressForm.fullAddress}
-                  onChange={(e) => setAddressForm({ ...addressForm, fullAddress: e.target.value })}
-                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                  placeholder="Số nhà, tên đường, toà nhà..."
-                />
+                <label className="text-label-lg font-bold text-on-surface-variant">Tòa nhà</label>
+                <select
+                  value={addressForm.buildingId ?? ''}
+                  onChange={(e) => {
+                    const id = e.target.value ? Number(e.target.value) : undefined;
+                    const selected = buildings.find((b) => b.id === id);
+                    setAddressForm({
+                      ...addressForm,
+                      buildingId: id,
+                      buildingCode: selected?.code,
+                      buildingName: selected?.name,
+                    });
+                  }}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md cursor-pointer"
+                >
+                  <option value="">-- Chọn tòa nhà --</option>
+                  {buildings.map((b) => (
+                    <option key={b.id} value={b.id}>
+                      {b.code} - {b.name}
+                    </option>
+                  ))}
+                </select>
+                {!addressForm.buildingId && (
+                  <p className="text-xs text-on-surface-variant/70">
+                    Để trống nếu địa chỉ giao hàng bên ngoài khu chung cư
+                  </p>
+                )}
               </div>
 
-              <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-                <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">Phường/Xã</label>
-                  <input
-                    type="text"
-                    value={addressForm.ward}
-                    onChange={(e) => setAddressForm({ ...addressForm, ward: e.target.value })}
-                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="Phường/Xã"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">Quận/Huyện</label>
-                  <input
-                    type="text"
-                    value={addressForm.district}
-                    onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
-                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="Quận/Huyện"
-                  />
-                </div>
-                <div className="flex flex-col gap-1">
-                  <label className="text-label-lg font-bold text-on-surface-variant">Tỉnh/Thành phố *</label>
-                  <input
-                    type="text"
-                    required
-                    value={addressForm.city}
-                    onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
-                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                    placeholder="Tỉnh/TP"
-                  />
-                </div>
+              {addressForm.buildingId && (
+                <>
+                  <div className="grid grid-cols-2 gap-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label-lg font-bold text-on-surface-variant">Tầng *</label>
+                      <input
+                        type="text"
+                        required
+                        value={addressForm.floor ?? ''}
+                        onChange={(e) => setAddressForm({ ...addressForm, floor: e.target.value })}
+                        className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                        placeholder="VD: 5"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label-lg font-bold text-on-surface-variant">Căn hộ *</label>
+                      <input
+                        type="text"
+                        required
+                        value={addressForm.apartmentNumber ?? ''}
+                        onChange={(e) => setAddressForm({ ...addressForm, apartmentNumber: e.target.value })}
+                        className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                        placeholder="VD: 501"
+                      />
+                    </div>
+                  </div>
+                  {addressForm.buildingCode && (
+                    <div className="p-3 bg-primary-container/30 rounded-xl border border-primary/20">
+                      <p className="text-sm font-semibold text-primary">
+                        Địa chỉ giao hàng: Căn hộ {addressForm.apartmentNumber || '?'}, tầng {addressForm.floor || '?'}, tòa {addressForm.buildingCode}
+                      </p>
+                    </div>
+                  )}
+                </>
+              )}
+
+              {!addressForm.buildingId && (
+                <>
+                  <div className="flex flex-col gap-1">
+                    <label className="text-label-lg font-bold text-on-surface-variant">Địa chỉ chi tiết</label>
+                    <input
+                      type="text"
+                      value={addressForm.fullAddress}
+                      onChange={(e) => setAddressForm({ ...addressForm, fullAddress: e.target.value })}
+                      className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                      placeholder="Số nhà, tên đường..."
+                    />
+                  </div>
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label-lg font-bold text-on-surface-variant">Phường/Xã</label>
+                      <input
+                        type="text"
+                        value={addressForm.ward}
+                        onChange={(e) => setAddressForm({ ...addressForm, ward: e.target.value })}
+                        className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                        placeholder="Phường/Xã"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label-lg font-bold text-on-surface-variant">Quận/Huyện</label>
+                      <input
+                        type="text"
+                        value={addressForm.district}
+                        onChange={(e) => setAddressForm({ ...addressForm, district: e.target.value })}
+                        className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                        placeholder="Quận/Huyện"
+                      />
+                    </div>
+                    <div className="flex flex-col gap-1">
+                      <label className="text-label-lg font-bold text-on-surface-variant">Tỉnh/Thành phố</label>
+                      <input
+                        type="text"
+                        value={addressForm.city}
+                        onChange={(e) => setAddressForm({ ...addressForm, city: e.target.value })}
+                        className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                        placeholder="Tỉnh/TP"
+                      />
+                    </div>
+                  </div>
+                </>
+              )}
+
+              <div className="flex flex-col gap-1">
+                <label className="text-label-lg font-bold text-on-surface-variant">Ghi chú giao hàng</label>
+                <textarea
+                  value={addressForm.deliveryNote ?? ''}
+                  onChange={(e) => setAddressForm({ ...addressForm, deliveryNote: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md resize-none"
+                  rows={2}
+                  placeholder="VD: Gọi trước khi giao, để trước cửa..."
+                />
               </div>
 
               <div className="flex items-center gap-2 pt-2">
@@ -1113,16 +1318,18 @@ const UserInfoPage: React.FC = () => {
                           orderDetail.status === 'CANCELLED' ? 'bg-error-container text-on-error-container' :
                           orderDetail.status === 'REFUNDED' ? 'bg-orange-100 text-orange-800' :
                           orderDetail.status === 'CONFIRMED' ? 'bg-cyan-100 text-cyan-800' :
-                          orderDetail.status === 'PROCESSING' ? 'bg-blue-100 text-blue-800' :
+                          orderDetail.status === 'PREPARING' || orderDetail.status === 'PROCESSING' ? 'bg-blue-100 text-blue-800' :
                           'bg-primary text-white'
                         }`}>
                           {orderDetail.status === 'PENDING' ? 'CHỜ XÁC NHẬN' :
                            orderDetail.status === 'CONFIRMED' ? 'ĐÃ XÁC NHẬN' :
+                           orderDetail.status === 'PREPARING' ? 'ĐANG CHUẨN BỊ' :
                            orderDetail.status === 'PROCESSING' ? 'ĐANG XỬ LÝ' :
                            orderDetail.status === 'SHIPPED' ? 'ĐÃ GIAO HÀNG' :
                            orderDetail.status === 'DELIVERED' ? 'ĐÃ GIAO HÀNG' :
                            orderDetail.status === 'CANCELLED' ? 'ĐÃ HỦY' :
-                           orderDetail.status === 'REFUNDED' ? 'ĐÃ HOÀN TIỀN' : orderDetail.status}
+                           orderDetail.status === 'REFUNDED' ? 'ĐÃ HOÀN TIỀN' :
+                           orderDetail.status === 'DELIVERING' ? 'ĐANG GIAO' : orderDetail.status}
                         </span>
                       </div>
                       <p className="text-on-surface-variant text-sm">
@@ -1131,7 +1338,7 @@ const UserInfoPage: React.FC = () => {
                     </div>
                   </div>
                   <div className="flex items-center gap-2">
-                    {orderDetail.status !== 'CANCELLED' && orderDetail.status !== 'DELIVERED' && orderDetail.status !== 'REFUNDED' && orderDetail.status !== 'SHIPPED' && (
+                    {orderDetail.status !== 'CANCELLED' && orderDetail.status !== 'DELIVERED' && orderDetail.status !== 'REFUNDED' && orderDetail.status !== 'SHIPPED' && orderDetail.status !== 'DELIVERING' && (
                       <button className="px-4 py-2 bg-primary text-white rounded-full font-bold text-sm hover:opacity-90 transition-all active:scale-95 cursor-pointer flex items-center gap-1.5">
                         <span className="material-symbols-outlined text-[18px]">support_agent</span>
                         Hỗ trợ
@@ -1151,7 +1358,7 @@ const UserInfoPage: React.FC = () => {
                   <div className="relative flex justify-between items-start">
                     <div className="absolute top-4 left-0 w-full h-0.5 bg-surface-container-highest -z-0">
                       {(() => {
-                        const statusOrder = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
+                        const statusOrder = ['PENDING', 'CONFIRMED', 'PREPARING', 'DELIVERING', 'DELIVERED'];
                         const isTerminal = ['CANCELLED', 'REFUNDED'].includes(orderDetail.status);
                         const lineIdx = isTerminal ? -1 : statusOrder.indexOf(orderDetail.status);
                         const linePercent = lineIdx <= 0 ? 0 : lineIdx === 1 ? 25 : lineIdx === 2 ? 50 : lineIdx === 3 ? 75 : 100;
@@ -1162,10 +1369,10 @@ const UserInfoPage: React.FC = () => {
                       { label: 'Đã đặt', icon: 'check_circle', getSub: () => `${new Date(orderDetail.createdAt).toLocaleDateString('vi-VN', { day: '2-digit', month: '2-digit' })} · ${new Date(orderDetail.createdAt).toLocaleTimeString('vi-VN', { hour: '2-digit', minute: '2-digit' })}` },
                       { label: 'Xác nhận', icon: 'task_alt', getSub: () => 'Đã xác nhận' },
                       { label: 'Xử lý', icon: 'inventory_2', getSub: () => 'Đang chuẩn bị' },
-                      { label: 'Vận chuyển', icon: 'local_shipping', getSub: () => orderDetail.status === 'SHIPPED' ? 'Đang giao' : orderDetail.status === 'DELIVERED' ? 'Đã giao' : 'Sắp tới' },
+                      { label: 'Vận chuyển', icon: 'local_shipping', getSub: () => orderDetail.status === 'DELIVERING' ? 'Đang giao' : orderDetail.status === 'DELIVERED' ? 'Đã giao' : 'Sắp tới' },
                       { label: 'Hoàn thành', icon: 'home', getSub: () => orderDetail.status === 'DELIVERED' ? 'Đã nhận hàng' : 'Dự kiến' },
                     ].map((step, i) => {
-                      const statusOrder = ['PENDING', 'CONFIRMED', 'PROCESSING', 'SHIPPED', 'DELIVERED'];
+                      const statusOrder = ['PENDING', 'CONFIRMED', 'PREPARING', 'DELIVERING', 'DELIVERED'];
                       const active = statusOrder.indexOf(orderDetail.status);
                       const isTerminal = ['CANCELLED', 'REFUNDED'].includes(orderDetail.status);
                       const isDone = !isTerminal && active > i;
@@ -1301,8 +1508,10 @@ const UserInfoPage: React.FC = () => {
                                 <p className="text-xs font-semibold text-on-surface">
                                   {h.toStatus === 'PENDING' ? 'Chờ xác nhận' :
                                    h.toStatus === 'CONFIRMED' ? 'Đã xác nhận' :
+                                   h.toStatus === 'PREPARING' ? 'Đang chuẩn bị' :
                                    h.toStatus === 'PROCESSING' ? 'Đang xử lý' :
                                    h.toStatus === 'SHIPPED' ? 'Đã giao hàng' :
+                                   h.toStatus === 'DELIVERING' ? 'Đang giao' :
                                    h.toStatus === 'DELIVERED' ? 'Đã giao hàng' :
                                    h.toStatus === 'CANCELLED' ? 'Đã hủy' :
                                    h.toStatus === 'REFUNDED' ? 'Đã hoàn tiền' : h.toStatus}
@@ -1321,6 +1530,160 @@ const UserInfoPage: React.FC = () => {
                 </div>
               </div>
             ) : null}
+          </div>
+        </div>
+      )}
+
+      {/* Address Delete Confirmation Modal */}
+      {addressToDeleteId !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm"
+          onClick={() => {
+            if (!isAddressDeleting) setAddressToDeleteId(null);
+          }}
+        >
+          <div
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="delete-address-title"
+            className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-md p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in duration-200"
+            onClick={(event) => event.stopPropagation()}
+          >
+            <div className="flex items-start gap-4">
+              <div className="w-11 h-11 rounded-2xl bg-red-50 text-red-600 flex items-center justify-center shrink-0">
+                <span className="material-symbols-outlined">warning</span>
+              </div>
+              <div className="min-w-0">
+                <h3 id="delete-address-title" className="text-headline-md font-bold text-on-surface">Xoá địa chỉ</h3>
+                <p className="text-body-md text-on-surface-variant mt-2">Bạn có chắc chắn muốn xoá địa chỉ này?</p>
+              </div>
+            </div>
+            <div className="flex justify-end gap-3">
+              <button
+                type="button"
+                onClick={() => setAddressToDeleteId(null)}
+                disabled={isAddressDeleting}
+                className="px-5 py-2 rounded-full border border-outline text-on-surface-variant font-bold hover:bg-surface-container-high transition-all cursor-pointer disabled:opacity-50"
+              >
+                Huỷ
+              </button>
+              <button
+                type="button"
+                onClick={handleConfirmDeleteAddress}
+                disabled={isAddressDeleting}
+                className="px-6 py-2 rounded-full bg-red-600 text-white font-bold hover:bg-red-700 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+              >
+                {isAddressDeleting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                Xoá
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Health Metrics Modal */}
+      {isMetricsModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/60 backdrop-blur-sm">
+          <div className="bg-surface-container-lowest border border-outline-variant rounded-2xl w-full max-w-md p-6 md:p-8 shadow-2xl space-y-6 animate-in fade-in duration-200">
+            <div className="flex justify-between items-center">
+              <h3 className="text-headline-md font-bold text-primary">Chỉ số sức khỏe</h3>
+              <button
+                onClick={() => setIsMetricsModalOpen(false)}
+                className="text-on-surface-variant hover:text-on-surface p-1 rounded-full hover:bg-surface-container-high transition-colors cursor-pointer"
+              >
+                <X className="w-5 h-5" />
+              </button>
+            </div>
+            <form onSubmit={handleMetricsSubmit} className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="flex flex-col gap-1">
+                  <label className="text-label-lg font-bold text-on-surface-variant">Chiều cao (cm) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={300}
+                    placeholder="VD: 170"
+                    value={metricsForm.heightCm}
+                    onChange={(e) => setMetricsForm({ ...metricsForm, heightCm: e.target.value })}
+                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                  />
+                </div>
+                <div className="flex flex-col gap-1">
+                  <label className="text-label-lg font-bold text-on-surface-variant">Cân nặng (kg) *</label>
+                  <input
+                    type="number"
+                    required
+                    min={1}
+                    max={500}
+                    placeholder="VD: 65"
+                    value={metricsForm.weightKg}
+                    onChange={(e) => setMetricsForm({ ...metricsForm, weightKg: e.target.value })}
+                    className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                  />
+                </div>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-label-lg font-bold text-on-surface-variant">Chế độ ăn</label>
+                <select
+                  value={metricsForm.dietType}
+                  onChange={(e) => setMetricsForm({ ...metricsForm, dietType: e.target.value as MealDietType | '' })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md cursor-pointer"
+                >
+                  <option value="">Không chọn</option>
+                  <option value="NORMAL">Bình thường</option>
+                  <option value="VEGETARIAN">Chay</option>
+                  <option value="VEGAN">Thuần chay</option>
+                  <option value="KETO">Keto</option>
+                  <option value="PALEO">Paleo</option>
+                  <option value="GLUTEN_FREE">Không gluten</option>
+                </select>
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-label-lg font-bold text-on-surface-variant">Mục tiêu calo/ngày</label>
+                <input
+                  type="number"
+                  min={500}
+                  max={10000}
+                  placeholder="VD: 1800"
+                  value={metricsForm.dailyCalorieTarget}
+                  onChange={(e) => setMetricsForm({ ...metricsForm, dailyCalorieTarget: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                />
+              </div>
+
+              <div className="flex flex-col gap-1">
+                <label className="text-label-lg font-bold text-on-surface-variant">Mục tiêu sức khỏe</label>
+                <input
+                  type="text"
+                  maxLength={100}
+                  placeholder="VD: Giảm cân, Tăng cơ..."
+                  value={metricsForm.healthGoal}
+                  onChange={(e) => setMetricsForm({ ...metricsForm, healthGoal: e.target.value })}
+                  className="w-full px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
+                />
+              </div>
+
+              <div className="pt-4 flex justify-end gap-3">
+                <button
+                  type="button"
+                  onClick={() => setIsMetricsModalOpen(false)}
+                  className="px-5 py-2 rounded-full border border-outline text-on-surface-variant font-bold hover:bg-surface-container-high transition-all cursor-pointer"
+                >
+                  Huỷ
+                </button>
+                <button
+                  type="submit"
+                  disabled={isMetricsSubmitting}
+                  className="px-6 py-2 rounded-full bg-primary text-white font-bold hover:bg-primary/95 transition-all cursor-pointer flex items-center gap-2 disabled:opacity-50"
+                >
+                  {isMetricsSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                  Lưu
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

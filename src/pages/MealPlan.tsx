@@ -1,307 +1,1046 @@
-import { useState } from "react";
-import { Salad, Sparkles, Loader2, Plus as PlusIcon, Check, ShoppingCart, Info, Printer, Calendar, Star, Utensils, ClipboardList, Settings, User, Zap } from "lucide-react";
-import { generateMealPlan, DayPlan, Meal } from "../services/geminiService";
+import { useState, useEffect, useCallback } from "react";
+import {
+  Sparkles, Loader2, ShoppingCart, Printer, Calendar, Star, Utensils,
+  ClipboardList, Settings, User, Zap, X, ChevronRight, RefreshCw,
+  Check, AlertTriangle, Info, Trash2, Plus, UtensilsCrossed, Minus
+} from "lucide-react";
 import { motion, AnimatePresence } from "motion/react";
+import {
+  generateMealPlan,
+  getMealPlans,
+  getMealPlanById,
+  deleteMealPlan,
+  regenerateMeal,
+  getShoppingList,
+  addMealPlanToCart,
+} from "../services/mealPlanService";
+import type {
+  MealPlanGenerationRequest,
+  MealPlanResponse,
+  MealDayResponse,
+  MealResponse,
+  ShoppingListItem,
+  DietType,
+  MealType,
+} from "../types/mealPlan";
+import { useUser } from "../hooks/useUser";
+import MealPlanPrintReport from "../components/MealPlanPrintReport";
+
+type PageState = "LOADING" | "FORM_READY" | "GENERATING" | "PLAN_READY" | "ERROR";
+
+const MEAL_TYPE_LABELS: Record<MealType, string> = {
+  BREAKFAST: "Sáng",
+  LUNCH: "Trưa",
+  DINNER: "Tối",
+  SNACK: "Snack",
+};
+
+const DIET_OPTIONS: { value: DietType; label: string }[] = [
+  { value: "NORMAL", label: "Bình thường" },
+  { value: "VEGETARIAN", label: "Chay" },
+  { value: "VEGAN", label: "Thuần chay" },
+  { value: "KETO", label: "Keto" },
+  { value: "PALEO", label: "Paleo" },
+  { value: "GLUTEN_FREE", label: "Không gluten" },
+];
 
 export default function MealPlan() {
-  const [preferences, setPreferences] = useState("");
-  const [loading, setLoading] = useState(false);
-  const [plans, setPlans] = useState<DayPlan[] | null>(null);
+  const { user } = useUser();
 
-  // States cho UI Plan Board
-  const [selectedDay, setSelectedDay] = useState(0);
-  const [selectedMeal, setSelectedMeal] = useState<{ dayIdx: number, type: 'breakfast'|'lunch'|'dinner', data: Meal } | null>(null);
+  // Page state
+  const [pageState, setPageState] = useState<PageState>("LOADING");
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  // Debounce: prevent double-submit by tracking if a request is in flight
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
-  const handleGenerate = async () => {
-    if (!preferences.trim()) return;
-    setLoading(true);
-    try {
-      const result = await generateMealPlan(preferences);
-      setPlans(result);
-    } catch (error) {
-      console.error(error);
-    } finally {
-      setLoading(false);
+  // Saved plans
+  const [savedPlans, setSavedPlans] = useState<MealPlanResponse[]>([]);
+
+  // Current active plan
+  const [currentPlan, setCurrentPlan] = useState<MealPlanResponse | null>(null);
+
+  // Selected day tab
+  const [selectedDayIdx, setSelectedDayIdx] = useState(0);
+
+  // Selected meal for detail modal
+  const [selectedMeal, setSelectedMeal] = useState<MealResponse | null>(null);
+
+  // Regenerating meal loading
+  const [regeneratingMealId, setRegeneratingMealId] = useState<number | null>(null);
+
+  // Shopping list
+  const [showShoppingList, setShowShoppingList] = useState(false);
+  const [shoppingList, setShoppingList] = useState<ShoppingListItem[]>([]);
+  const [loadingShoppingList, setLoadingShoppingList] = useState(false);
+  const [isPreparingPrint, setIsPreparingPrint] = useState(false);
+  const [cartMessage, setCartMessage] = useState<string | null>(null);
+
+  // Delete confirmation
+  const [deleteConfirmId, setDeleteConfirmId] = useState<number | null>(null);
+
+  // Form state
+  const [form, setForm] = useState({
+    numberOfDays: 3,
+    mealsPerDay: 3,
+    servings: 1,
+    dietType: "NORMAL" as DietType,
+    dailyCalorieTarget: "",
+    budgetMax: "",
+    maxCookingMinutes: "",
+    preferredIngredients: "",
+    excludedIngredients: "",
+    additionalNotes: "",
+  });
+
+  // Load user preference defaults and saved plans
+  useEffect(() => {
+    const init = async () => {
+      if (user?.allergens && user.allergens.length > 0) {
+        const excluded = user.allergens.map((a) => a.name).join(", ");
+        setForm((f) => ({ ...f, excludedIngredients: excluded }));
+      }
+      try {
+        const plans = await getMealPlans();
+        setSavedPlans(plans);
+      } catch {
+        // ignore
+      }
+      setPageState("FORM_READY");
+    };
+    void init();
+  }, [user]);
+
+  // Auto-fill calorie target from user preference (only once when form is ready and user has data)
+  useEffect(() => {
+    if (pageState !== "FORM_READY" || !user) return;
+    if (user.dailyCalorieTarget && !form.dailyCalorieTarget) {
+      setForm((f) => ({ ...f, dailyCalorieTarget: String(user.dailyCalorieTarget) }));
     }
-  };
+    if (user.dietType && !form.dietType) {
+      setForm((f) => ({ ...f, dietType: user.dietType as DietType }));
+    }
+  }, [pageState, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Handlers
+  const handleGenerate = useCallback(async () => {
+    if (isSubmitting) return;
+    setIsSubmitting(true);
+    setPageState("GENERATING");
+    setErrorMessage(null);
+    try {
+      const payload: MealPlanGenerationRequest = {
+        numberOfDays: form.numberOfDays,
+        mealsPerDay: form.mealsPerDay,
+        servings: form.servings,
+        dietType: form.dietType,
+        dailyCalorieTarget: form.dailyCalorieTarget ? Number(form.dailyCalorieTarget) : undefined,
+        budgetMax: form.budgetMax ? Number(form.budgetMax) : undefined,
+        maxCookingMinutes: form.maxCookingMinutes ? Number(form.maxCookingMinutes) : undefined,
+        preferredIngredients: form.preferredIngredients
+          ? form.preferredIngredients.split("\n").map((s) => s.trim()).filter(Boolean)
+          : undefined,
+        excludedIngredients: form.excludedIngredients
+          ? form.excludedIngredients.split("\n").map((s) => s.trim()).filter(Boolean)
+          : undefined,
+        additionalNotes: form.additionalNotes || undefined,
+      };
+      const plan = await generateMealPlan(payload);
+      setCurrentPlan(plan);
+      setSavedPlans((prev) => [plan, ...prev]);
+      setSelectedDayIdx(0);
+      setPageState("PLAN_READY");
+    } catch (err: any) {
+      const msg = err?.message || "Đã xảy ra lỗi khi tạo thực đơn.";
+      if (msg.includes("đăng nhập") || msg.includes("401") || msg.includes("Unauthorized")) {
+        setErrorMessage("Phiên đăng nhập đã hết hạn. Vui lòng đăng nhập lại.");
+      } else {
+        setErrorMessage(msg);
+      }
+      setPageState("ERROR");
+    } finally {
+      setIsSubmitting(false);
+    }
+  }, [form, isSubmitting]);
+
+  const handleOpenPlan = useCallback(async (id: number) => {
+    try {
+      const plan = await getMealPlanById(id);
+      setCurrentPlan(plan);
+      setSelectedDayIdx(0);
+      setPageState("PLAN_READY");
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Không thể mở thực đơn.");
+      setPageState("ERROR");
+    }
+  }, []);
+
+  const handleDeletePlan = useCallback(async (id: number) => {
+    try {
+      await deleteMealPlan(id);
+      setSavedPlans((prev) => prev.filter((p) => p.id !== id));
+      if (currentPlan?.id === id) {
+        setCurrentPlan(null);
+        setPageState("FORM_READY");
+      }
+      setDeleteConfirmId(null);
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Không thể xóa thực đơn.");
+    }
+  }, [currentPlan]);
+
+  const handleRegenerateMeal = useCallback(async (mealId: number) => {
+    if (!currentPlan) return;
+    setRegeneratingMealId(mealId);
+    try {
+      const updatedMeal = await regenerateMeal(currentPlan.id, mealId);
+      setCurrentPlan((prev) => {
+        if (!prev) return prev;
+        return {
+          ...prev,
+          days: prev.days.map((day) => ({
+            ...day,
+            meals: day.meals.map((m) => (m.id === mealId ? updatedMeal : m)),
+          })),
+        };
+      });
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Không thể tạo lại món ăn.");
+    } finally {
+      setRegeneratingMealId(null);
+    }
+  }, [currentPlan]);
+
+  const handleShowShoppingList = useCallback(async () => {
+    if (!currentPlan) return;
+    setShowShoppingList(true);
+    setLoadingShoppingList(true);
+    try {
+      const list = await getShoppingList(currentPlan.id);
+      setShoppingList(list);
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Không thể tải danh sách mua hàng.");
+    } finally {
+      setLoadingShoppingList(false);
+    }
+  }, [currentPlan]);
+
+  const handleAddToCart = useCallback(async () => {
+    if (!currentPlan) return;
+    try {
+      const result = await addMealPlanToCart(currentPlan.id);
+      setCartMessage(result.message);
+      window.dispatchEvent(new CustomEvent("cart-updated"));
+      setTimeout(() => setCartMessage(null), 3000);
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Không thể thêm vào giỏ hàng.");
+    }
+  }, [currentPlan]);
+
+  const handlePrintPlan = useCallback(async () => {
+    if (!currentPlan || isPreparingPrint) return;
+    setIsPreparingPrint(true);
+    setErrorMessage(null);
+    try {
+      const list = await getShoppingList(currentPlan.id);
+      setShoppingList(list);
+      await new Promise<void>((resolve) => {
+        window.requestAnimationFrame(() => window.requestAnimationFrame(() => resolve()));
+      });
+      await document.fonts?.ready;
+      window.print();
+    } catch (err: any) {
+      setErrorMessage(err?.message || "Không thể chuẩn bị bản PDF.");
+    } finally {
+      setIsPreparingPrint(false);
+    }
+  }, [currentPlan, isPreparingPrint]);
+
+  const currentDay: MealDayResponse | undefined = currentPlan?.days[selectedDayIdx];
 
   return (
-    <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-6 md:py-10 flex flex-col md:flex-row gap-6 md:gap-8">
-      {/* Sidebar */}
-      <aside className="w-full md:w-64 flex-shrink-0 hidden md:flex flex-col gap-8 sticky top-24 h-[calc(100vh-120px)] border-r border-outline-variant pr-8">
-        <div className="flex items-center gap-3">
-          <div className="size-10 rounded-full bg-primary flex items-center justify-center text-white">
-            <User size={20} />
-          </div>
-          <div>
-            <h3 className="font-bold text-on-surface text-sm">Green Planner</h3>
-            <p className="text-xs text-on-surface-variant">Sống Khỏe Mỗi Ngày</p>
-          </div>
+    <div className="max-w-[1400px] mx-auto px-4 md:px-10 py-6 md:py-10">
+      {/* Header */}
+      <div className="text-center mb-8">
+        <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-bold uppercase tracking-widest border border-primary/20 mb-4">
+          <Sparkles size={14} />
+          Thực đơn thông minh
         </div>
+        <h1 className="text-3xl md:text-4xl font-bold tracking-tight text-on-surface">
+          Lên kế hoạch thực đơn cá nhân
+        </h1>
+        <p className="text-on-surface-variant mt-2 max-w-2xl mx-auto">
+          Khai báo sở thích, AI sẽ tạo thực đơn cân bằng dinh dưỡng cho bạn
+        </p>
+      </div>
 
-        <nav className="space-y-2 flex-grow">
-          {plans ? (
-            <button
-              onClick={() => setPlans(null)}
-              className="w-full flex items-center gap-3 px-4 py-3 rounded-xl text-on-surface hover:bg-surface-container transition-colors font-medium text-sm"
-            >
-              <Sparkles size={18} /> Tạo thực đơn mới
-            </button>
-          ) : (
-            <button className="w-full flex items-center gap-3 px-4 py-3 rounded-xl bg-primary text-white font-bold text-sm shadow-md">
-              <Sparkles size={18} /> Tạo thực đơn
-            </button>
-          )}
-
-          <button
-            className={`w-full flex items-center gap-3 px-4 py-3 rounded-xl font-medium text-sm transition-colors
-              ${plans ? 'bg-primary text-white shadow-md font-bold' : 'text-on-surface hover:bg-surface-container'}`}
+      {/* Error Banner */}
+      <AnimatePresence>
+        {errorMessage && (
+          <motion.div
+            initial={{ opacity: 0, y: -10 }}
+            animate={{ opacity: 1, y: 0 }}
+            exit={{ opacity: 0, y: -10 }}
+            className="mb-6 flex items-center gap-3 bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-xl"
           >
-            <Calendar size={18} /> Thực đơn của tôi
-          </button>
-          <a href="#" className="flex items-center gap-3 px-4 py-3 rounded-xl text-on-surface hover:bg-surface-container transition-colors font-medium text-sm">
-            <Star size={18} /> Món ăn đặc biệt
-          </a>
-          <a href="#" className="flex items-center gap-3 px-4 py-3 rounded-xl text-on-surface hover:bg-surface-container transition-colors font-medium text-sm">
-            <Utensils size={18} /> Công thức
-          </a>
-          <a href="#" className="flex items-center gap-3 px-4 py-3 rounded-xl text-on-surface hover:bg-surface-container transition-colors font-medium text-sm">
-            <ClipboardList size={18} /> Danh sách cần mua
-          </a>
-          <a href="#" className="flex items-center gap-3 px-4 py-3 rounded-xl text-on-surface hover:bg-surface-container transition-colors font-medium text-sm">
-            <Settings size={18} /> Cài đặt
-          </a>
-        </nav>
-      </aside>
+            <AlertTriangle size={18} />
+            <span className="flex-1">{errorMessage}</span>
+            <button onClick={() => setErrorMessage(null)} className="hover:bg-red-100 rounded p-1" aria-label="Dismiss">
+              <X size={16} />
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
 
-      {/* Main Content */}
-      <div className="flex-grow w-full max-w-5xl">
-        {!plans && (
-          <>
-            <div className="text-center mb-10 md:mb-16 space-y-4">
-              <div className="inline-flex items-center gap-2 px-4 py-1.5 bg-primary/10 text-primary rounded-full text-xs font-bold uppercase tracking-widest border border-primary/20">
-                <Sparkles size={14} />
-                Sức khỏe từ AI
+      <div className="flex flex-col lg:flex-row gap-8">
+        {/* Saved Plans Sidebar */}
+        {savedPlans.length > 0 && pageState === "FORM_READY" && (
+          <aside className="w-full lg:w-72 flex-shrink-0">
+            <div className="bg-white rounded-2xl border border-outline-variant p-4 shadow-sm">
+              <h3 className="font-bold text-on-surface mb-3 flex items-center gap-2">
+                <Calendar size={16} className="text-primary" />
+                Thực đơn đã lưu
+              </h3>
+              <div className="space-y-2 max-h-[400px] overflow-y-auto">
+                {savedPlans.map((plan) => (
+                  <div key={plan.id} className="flex items-center gap-2 p-2 rounded-xl hover:bg-surface-container transition-colors group">
+                    <button
+                      onClick={() => handleOpenPlan(plan.id)}
+                      className="flex-1 text-left"
+                    >
+                      <p className="text-sm font-bold text-on-surface truncate">{plan.name}</p>
+                      <p className="text-xs text-on-surface-variant">{plan.numberOfDays} ngày · {plan.createdAt ? new Date(plan.createdAt).toLocaleDateString("vi-VN") : ""}</p>
+                    </button>
+                    <button
+                      onClick={() => setDeleteConfirmId(plan.id)}
+                      className="opacity-0 group-hover:opacity-100 transition-opacity p-1.5 hover:bg-red-50 text-red-500 rounded-lg"
+                      aria-label="Xóa thực đơn"
+                    >
+                      <Trash2 size={14} />
+                    </button>
+                  </div>
+                ))}
               </div>
-              <h1 className="text-3xl md:text-5xl font-bold tracking-tight text-on-surface px-2">Lên kế hoạch thực đơn cá nhân</h1>
-              <p className="text-base md:text-lg text-on-surface-variant max-w-2xl mx-auto font-medium px-4">
-                Hãy cho chúng tôi biết mục tiêu ăn uống, dị ứng hoặc thành phần yêu thích của bạn, AI sẽ thiết kế một thực đơn hữu cơ cân bằng dành riêng cho bạn.
-              </p>
             </div>
+          </aside>
+        )}
 
-            <div className="bg-white p-6 md:p-12 rounded-2xl md:rounded-[2.5rem] border border-outline-variant shadow-xl shadow-primary/5 mb-10 md:mb-20 relative overflow-hidden ring-1 ring-primary/5">
-              <div className="absolute top-0 right-0 p-4 md:p-8 text-primary/10 pointer-events-none hidden sm:block">
-                <Salad size={120} strokeWidth={1} />
-              </div>
+        {/* Main Content */}
+        <div className="flex-1 min-w-0">
+          <AnimatePresence mode="wait">
+            {/* GENERATING / LOADING */}
+            {(pageState === "LOADING" || pageState === "GENERATING") && (
+              <motion.div
+                key="loading"
+                initial={{ opacity: 0 }}
+                animate={{ opacity: 1 }}
+                exit={{ opacity: 0 }}
+                className="flex flex-col items-center justify-center py-24 gap-4"
+              >
+                <div className="relative">
+                  <div className="absolute inset-0 rounded-full bg-primary/20 animate-ping" style={{ animationDuration: "2s" }} />
+                  <div className="relative size-16 rounded-full bg-primary flex items-center justify-center">
+                    <Loader2 size={28} className="text-white animate-spin" />
+                  </div>
+                </div>
+                <div className="text-center">
+                  <p className="text-lg font-bold text-on-surface">AI đang thiết kế thực đơn...</p>
+                  <p className="text-sm text-on-surface-variant mt-1">Có thể mất 10-30 giây</p>
+                </div>
+              </motion.div>
+            )}
 
-              <div className="relative z-10 space-y-6 md:space-y-8">
-                <div className="space-y-4">
-                  <label className="block text-xs md:text-sm font-bold uppercase tracking-[0.2em] text-on-surface-variant opacity-60 ml-1">
-                    Sở thích ăn uống & Mục tiêu
-                  </label>
+            {/* FORM */}
+            {pageState === "FORM_READY" && (
+              <motion.div
+                key="form"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="bg-white rounded-2xl border border-outline-variant p-6 md:p-8 shadow-sm"
+              >
+                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-6">
+                  {/* Number of Days */}
+                  <div>
+                    <label className="block text-sm font-bold text-on-surface-variant mb-2">Số ngày</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {[1, 2, 3, 4, 5, 6, 7].map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => setForm((f) => ({ ...f, numberOfDays: n }))}
+                          className={`size-10 rounded-xl font-bold text-sm transition-all ${
+                            form.numberOfDays === n
+                              ? "bg-primary text-white shadow-md"
+                              : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Meals per Day */}
+                  <div>
+                    <label className="block text-sm font-bold text-on-surface-variant mb-2">Bữa ăn/ngày</label>
+                    <div className="flex gap-2 flex-wrap">
+                      {[1, 2, 3, 4].map((n) => (
+                        <button
+                          key={n}
+                          onClick={() => setForm((f) => ({ ...f, mealsPerDay: n }))}
+                          className={`size-10 rounded-xl font-bold text-sm transition-all ${
+                            form.mealsPerDay === n
+                              ? "bg-primary text-white shadow-md"
+                              : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
+                          }`}
+                        >
+                          {n}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+
+                  {/* Servings */}
+                  <div>
+                    <label className="block text-sm font-bold text-on-surface-variant mb-2">Khẩu phần</label>
+                    <div className="flex items-center gap-3">
+                      <button
+                        onClick={() => setForm((f) => ({ ...f, servings: Math.max(1, f.servings - 1) }))}
+                        className="size-9 rounded-xl bg-surface-container hover:bg-surface-container-high flex items-center justify-center transition-colors"
+                        aria-label="Giảm"
+                      >
+                        <Minus size={16} />
+                      </button>
+                      <span className="text-lg font-bold text-on-surface w-8 text-center">{form.servings}</span>
+                      <button
+                        onClick={() => setForm((f) => ({ ...f, servings: Math.min(10, f.servings + 1) }))}
+                        className="size-9 rounded-xl bg-surface-container hover:bg-surface-container-high flex items-center justify-center transition-colors"
+                        aria-label="Tăng"
+                      >
+                        <Plus size={16} />
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Diet Type */}
+                  <div>
+                    <label className="block text-sm font-bold text-on-surface-variant mb-2">Chế độ ăn</label>
+                    <select
+                      value={form.dietType}
+                      onChange={(e) => setForm((f) => ({ ...f, dietType: e.target.value as DietType }))}
+                      className="w-full px-4 py-2.5 rounded-xl border-2 border-outline-variant bg-surface-container focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none text-on-surface font-medium"
+                    >
+                      {DIET_OPTIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>{opt.label}</option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Calorie Target */}
+                  <div>
+                    <label className="block text-sm font-bold text-on-surface-variant mb-2">Mục tiêu calo/ngày <span className="font-normal opacity-50">(tùy chọn)</span></label>
+                    <input
+                      type="number"
+                      placeholder="VD: 1500"
+                      value={form.dailyCalorieTarget}
+                      onChange={(e) => setForm((f) => ({ ...f, dailyCalorieTarget: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl border-2 border-outline-variant bg-surface-container focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none text-on-surface placeholder:text-on-surface-variant/50"
+                      min={500} max={5000}
+                    />
+                  </div>
+
+                  {/* Budget */}
+                  <div>
+                    <label className="block text-sm font-bold text-on-surface-variant mb-2">Ngân sách tối đa (VNĐ) <span className="font-normal opacity-50">(tùy chọn)</span></label>
+                    <input
+                      type="number"
+                      placeholder="VD: 200000"
+                      value={form.budgetMax}
+                      onChange={(e) => setForm((f) => ({ ...f, budgetMax: e.target.value }))}
+                      className="w-full px-4 py-2.5 rounded-xl border-2 border-outline-variant bg-surface-container focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none text-on-surface placeholder:text-on-surface-variant/50"
+                    />
+                  </div>
+
+                  {/* Cooking Minutes */}
+                  <div className="sm:col-span-2">
+                    <label className="block text-sm font-bold text-on-surface-variant mb-2">Thời gian nấu tối đa (phút) <span className="font-normal opacity-50">(tùy chọn)</span></label>
+                    <input
+                      type="number"
+                      placeholder="VD: 60"
+                      value={form.maxCookingMinutes}
+                      onChange={(e) => setForm((f) => ({ ...f, maxCookingMinutes: e.target.value }))}
+                      className="w-full max-w-xs px-4 py-2.5 rounded-xl border-2 border-outline-variant bg-surface-container focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none text-on-surface placeholder:text-on-surface-variant/50"
+                      min={5} max={240}
+                    />
+                  </div>
+                </div>
+
+                {/* Ingredients Textareas */}
+                <div className="mt-6 grid grid-cols-1 md:grid-cols-2 gap-6">
+                  <div>
+                    <label className="block text-sm font-bold text-on-surface-variant mb-2">Nguyên liệu yêu thích <span className="font-normal opacity-50">(mỗi dòng 1 nguyên liệu)</span></label>
+                    <textarea
+                      value={form.preferredIngredients}
+                      onChange={(e) => setForm((f) => ({ ...f, preferredIngredients: e.target.value }))}
+                      placeholder="VD: bông cải xanh&#10;ức gà&#10;gạo lứt"
+                      rows={4}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-outline-variant bg-surface-container focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none text-on-surface placeholder:text-on-surface-variant/40 resize-none text-sm"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-bold text-on-surface-variant mb-2">Nguyên liệu muốn tránh <span className="font-normal opacity-50">(mỗi dòng 1 nguyên liệu)</span></label>
+                    <textarea
+                      value={form.excludedIngredients}
+                      onChange={(e) => setForm((f) => ({ ...f, excludedIngredients: e.target.value }))}
+                      placeholder="VD: tôm&#10;thịt bò"
+                      rows={4}
+                      className="w-full px-4 py-3 rounded-xl border-2 border-outline-variant bg-surface-container focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none text-on-surface placeholder:text-on-surface-variant/40 resize-none text-sm"
+                    />
+                  </div>
+                </div>
+
+                {/* Additional Notes */}
+                <div className="mt-6">
+                  <label className="block text-sm font-bold text-on-surface-variant mb-2">Ghi chú thêm</label>
                   <textarea
-                    className="w-full p-4 md:p-6 rounded-2xl md:rounded-3xl border-2 border-outline-variant bg-surface-container-low focus:border-primary focus:ring-4 focus:ring-primary/10 transition-all outline-none font-medium text-base md:text-lg min-h-[140px] md:min-h-[160px] resize-none"
-                    placeholder="Ví dụ: Ăn chay, thực đơn keto, giàu protein, dị ứng các loại hạt, thích bơ và cải xoăn..."
-                    value={preferences}
-                    onChange={(e) => setPreferences(e.target.value)}
+                    value={form.additionalNotes}
+                    onChange={(e) => setForm((f) => ({ ...f, additionalNotes: e.target.value }))}
+                    placeholder="VD: Ăn nhẹ, không quá mặn..."
+                    rows={3}
+                    className="w-full px-4 py-3 rounded-xl border-2 border-outline-variant bg-surface-container focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none text-on-surface placeholder:text-on-surface-variant/40 resize-none text-sm"
                   />
+                </div>
+
+                <div className="mt-6 flex items-center gap-2 text-xs text-on-surface-variant bg-primary/5 px-4 py-3 rounded-xl border border-primary/10">
+                  <Info size={14} className="text-primary shrink-0" />
+                  Thông tin dinh dưỡng do AI tạo chỉ mang tính tham khảo.
                 </div>
 
                 <button
                   onClick={handleGenerate}
-                  disabled={loading || !preferences.trim()}
-                  className="w-full bg-primary text-on-primary h-16 md:h-20 rounded-2xl md:rounded-3xl font-bold text-lg md:text-xl flex items-center justify-center gap-2 md:gap-3 hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary/20 disabled:opacity-50 disabled:grayscale"
+                  disabled={isSubmitting}
+                  className="mt-6 w-full h-14 bg-primary text-white rounded-2xl font-bold text-lg flex items-center justify-center gap-3 hover:brightness-110 active:scale-[0.98] transition-all shadow-lg shadow-primary/20 disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {loading ? (
-                    <>
-                      <Loader2 className="animate-spin" />
-                      Đang thiết kế kế hoạch...
-                    </>
-                  ) : (
-                    <>
-                      <Sparkles size={24} />
-                      Tạo kế hoạch sức khỏe của tôi
-                    </>
-                  )}
+                  {isSubmitting ? <Loader2 size={22} className="animate-spin" /> : <Sparkles size={22} />}
+                  {isSubmitting ? "Đang tạo thực đơn..." : "Tạo thực đơn"}
+                  {!isSubmitting && <ChevronRight size={20} />}
                 </button>
-              </div>
-            </div>
-          </>
-        )}
+              </motion.div>
+            )}
 
-        <AnimatePresence mode="wait">
-          {plans && (
-            <motion.div
-              initial={{ opacity: 0, y: 20 }}
-              animate={{ opacity: 1, y: 0 }}
-              className="flex flex-col lg:flex-row gap-6 md:gap-8"
-            >
-              {/* Left side: Calendar Board */}
-              <div className="w-full flex-grow bg-white/50 backdrop-blur-md rounded-3xl md:rounded-[2.5rem] border border-outline-variant p-4 md:p-10 shadow-lg overflow-x-hidden">
-                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6 md:mb-8">
+            {/* PLAN VIEW */}
+            {pageState === "PLAN_READY" && currentPlan && (
+              <motion.div
+                key="plan"
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+              >
+                {/* Plan Header */}
+                <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center gap-4 mb-6">
                   <div>
-                     <h2 className="text-2xl md:text-3xl font-bold tracking-tight text-on-surface">Lên kế hoạch ăn xanh</h2>
-                     <p className="text-sm md:text-base text-on-surface-variant font-medium mt-1">Gợi ý từ AI theo sở thích của bạn</p>
+                    <h2 className="text-2xl font-bold text-on-surface">{currentPlan.name}</h2>
+                    <p className="text-sm text-on-surface-variant mt-0.5">
+                      {currentPlan.numberOfDays} ngày · {currentPlan.mealsPerDay} bữa/ngày · {currentPlan.servings} khẩu phần
+                      {currentPlan.dailyCalorieTarget && ` · ${currentPlan.dailyCalorieTarget} kcal/ngày`}
+                    </p>
                   </div>
-                  <div className="flex flex-col sm:flex-row gap-2 sm:gap-4 w-full sm:w-auto">
-                    <button className="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 rounded-full border-2 border-primary text-primary font-bold hover:bg-primary/5 transition-colors text-sm">
-                      <Printer size={16} /> In kế hoạch
-                    </button>
-                    <button className="w-full sm:w-auto flex justify-center items-center gap-2 px-5 py-2.5 rounded-full bg-primary text-white font-bold hover:brightness-110 transition-colors shadow-md text-sm">
-                      <ShoppingCart size={16} /> Thêm tất cả vào giỏ hàng
-                    </button>
-                  </div>
-                </div>
-
-                {/* Header Days */}
-                <div className="grid grid-cols-7 gap-4 mb-6">
-                  {['Thứ Hai', 'Thứ Ba', 'Thứ Tư', 'Thứ Năm', 'Thứ Sáu', 'Thứ Bảy', 'Chủ Nhật'].map((dayName, idx) => (
-                  <div key={idx} className="text-center pb-2">
-                     <span className={`text-sm font-bold block ${idx < plans.length ? 'text-primary' : 'text-on-surface-variant/40'}`}>
-                       {idx < plans.length ? `Ngày ${idx + 1}` : dayName}
-                     </span>
-                  </div>
-                ))}
-                </div>
-
-                {/* Grid Cells */}
-                <div className="space-y-4 relative">
-                  {['breakfast', 'lunch', 'dinner'].map((mealType) => (
-                   <div key={mealType} className="grid grid-cols-7 gap-4">
-                      {Array.from({ length: 7 }).map((_, dayIdx) => {
-                         const hasPlan = dayIdx < plans.length;
-                         const mealData = hasPlan ? plans[dayIdx][mealType as keyof Omit<DayPlan, 'day'>] : null;
-                         const isSelected = selectedMeal?.dayIdx === dayIdx && selectedMeal?.type === mealType;
-
-                         if (!hasPlan || !mealData) {
-                           return (
-                             <div key={dayIdx} className="aspect-[3/4] md:h-36 rounded-3xl border-2 border-dashed border-outline-variant/60 bg-transparent flex items-center justify-center opacity-30">
-                               <PlusIcon size={24} className="text-on-surface-variant/50" />
-                             </div>
-                           );
-                         }
-
-                         return (
-                           <button
-                             key={dayIdx}
-                             onClick={() => setSelectedMeal({ dayIdx, type: mealType as any, data: mealData })}
-                             className={`aspect-[3/4] md:h-auto h-36 px-3 py-4 rounded-3xl flex flex-col transition-all text-left relative overflow-hidden group
-                               ${isSelected 
-                                 ? 'bg-primary ring-2 ring-primary ring-offset-2 text-white shadow-xl' 
-                                 : 'bg-white border hover:border-primary/50 shadow-sm border-outline-variant/40'
-                               }`}
-                           >
-                              {/* Cập nhật Background Image nếu có (ở đây xài Unsplash với từ khoá ngẫu nhiên hoặc imageKeyword) */}
-                              {isSelected ? (
-                                <div className="absolute inset-0 bg-black/20 z-0" />
-                              ) : null}
-
-                              <div className="relative z-10 w-full flex flex-col h-full items-start justify-between">
-                                {/* Label bữa ăn */}
-                                <div className={`inline-flex px-3 py-1 rounded-full text-[10px] font-bold tracking-wider mb-2
-                                  ${isSelected ? 'bg-white/20 text-white backdrop-blur-sm' : 'bg-primary/10 text-primary'}`}>
-                                  {mealType === 'breakfast' && 'Sáng'}
-                                  {mealType === 'lunch' && 'Trưa'}
-                                  {mealType === 'dinner' && 'Tối'}
-                                </div>
-
-                                {/* Avatar Hình ảnh của món được dùng qua API Unsplash */}
-                                {mealData.imageKeyword && (
-                                   <div className={`size-10 rounded-full mt-1 mb-2 border-2 object-cover overflow-hidden
-                                     ${isSelected ? 'border-primary-container shadow-md' : 'border-surface shadow-sm'}
-                                   `}>
-                                     <img src={`https://source.unsplash.com/random/100x100/?${mealData.imageKeyword},food`} alt={mealData.name} className="size-full object-cover" />
-                                   </div>
-                                )}
-
-                                {/* Tên món ăn */}
-                                <h4 className={`text-xs md:text-sm font-bold line-clamp-2 md:line-clamp-3 leading-snug w-full mb-1 ${isSelected ? 'text-white' : 'text-on-surface'}`}>
-                                  {mealData.name}
-                                </h4>
-
-                                {/* Calo */}
-                                <div className={`mt-auto text-[10px] font-bold flex items-center gap-1 ${isSelected ? 'text-white/80' : 'text-on-surface-variant'} `}>
-                                   <Zap size={10} className={isSelected ? 'fill-white' : 'fill-outline'} />
-                                   {mealData.calories} kcal
-                                </div>
-                              </div>
-                           </button>
-                         )
-                      })}
-                   </div>
-                ))}
-                </div>
-              </div>
-
-              {/* Right side: Grocery List & Detail */}
-              <div className="w-full lg:w-[320px] lg:flex-shrink-0 flex flex-col gap-6">
-                {/* Shopping List Card */}
-                <div className="bg-surface-container-lowest rounded-[2.5rem] border border-outline-variant p-6 shadow-sm">
-                 <div className="flex items-center justify-between mb-6">
-                   <h3 className="font-bold text-lg text-on-surface">Danh sách cần mua</h3>
-                   <span className="size-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold">
-                     {plans.reduce((acc, curr) => acc + curr.breakfast.suggestedProducts.length + curr.lunch.suggestedProducts.length + curr.dinner.suggestedProducts.length, 0)}
-                   </span>
-                 </div>
-
-                 <div className="space-y-4 max-h-[300px] overflow-y-auto pr-2 custom-scrollbar">
-                    {plans.map(p => [...p.breakfast.suggestedProducts, ...p.lunch.suggestedProducts, ...p.dinner.suggestedProducts]).flat().slice(0, 10).map((prod, i) => (
-                      <label key={i} className="flex items-start gap-3 group cursor-pointer">
-                        <div className="relative mt-0.5">
-                          <input type="checkbox" defaultChecked={i < 2} className="peer appearance-none size-5 border-2 border-outline-variant rounded-md checked:border-primary checked:bg-primary transition-colors cursor-pointer" />
-                          <Check size={14} className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 text-white opacity-0 peer-checked:opacity-100 transition-opacity pointer-events-none" />
-                        </div>
-                        <div className="flex-1">
-                          <span className="text-sm font-bold text-on-surface group-hover:text-primary transition-colors block leading-tight">{prod}</span>
-                          <span className="text-xs text-on-surface-variant font-medium opacity-70">Gợi ý AI</span>
-                        </div>
-                      </label>
-                    ))}
-                 </div>
-
-                 <div className="mt-8 pt-6 border-t border-outline-variant/50">
-                   <button className="w-full bg-secondary-container text-on-secondary-container h-14 rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-105 transition-all">
-                     <ShoppingCart size={18} /> Thêm vào giỏ hàng
-                   </button>
-                 </div>
-                </div>
-
-                {/* Meal Detail (If selected) */}
-                <AnimatePresence>
-                  {selectedMeal && (
-                    <motion.div
-                      initial={{ opacity: 0, scale: 0.95 }}
-                      animate={{ opacity: 1, scale: 1 }}
-                      exit={{ opacity: 0, scale: 0.95 }}
-                      className="bg-primary/5 rounded-[2.5rem] p-6 border border-primary/20 relative overflow-hidden"
+                  <div className="flex flex-wrap gap-2">
+                    <button
+                      onClick={handlePrintPlan}
+                      disabled={isPreparingPrint}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-outline-variant text-on-surface font-bold text-sm hover:bg-surface-container transition-colors disabled:opacity-60 disabled:cursor-wait"
                     >
-                      <div className="absolute top-4 right-4 text-primary/20"><Info size={40} /></div>
-                      <span className="inline-block px-3 py-1 bg-white text-primary rounded-full text-[10px] font-bold uppercase tracking-widest mb-3 border border-primary/20">
-                        Chi tiết món ăn
-                      </span>
-                      <h3 className="text-lg font-bold text-on-surface mb-2 leading-tight pr-8">{selectedMeal.data.name}</h3>
-                      <p className="text-sm text-on-surface-variant mb-4 italic leading-relaxed">"{selectedMeal.data.instructions}"</p>
+                      {isPreparingPrint ? <Loader2 size={16} className="animate-spin" /> : <Printer size={16} />}
+                      {isPreparingPrint ? "Đang chuẩn bị..." : "Xuất PDF"}
+                    </button>
+                    <button
+                      onClick={handleShowShoppingList}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl border-2 border-outline-variant text-on-surface font-bold text-sm hover:bg-surface-container transition-colors"
+                    >
+                      <ClipboardList size={16} /> Danh sách mua
+                    </button>
+                    <button
+                      onClick={handleAddToCart}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl bg-primary text-white font-bold text-sm hover:brightness-110 transition-colors shadow-md"
+                    >
+                      <ShoppingCart size={16} /> Thêm vào giỏ
+                    </button>
+                    <button
+                      onClick={() => { setCurrentPlan(null); setPageState("FORM_READY"); }}
+                      className="flex items-center gap-2 px-4 py-2 rounded-xl text-on-surface-variant font-bold text-sm hover:bg-surface-container transition-colors"
+                    >
+                      <Plus size={16} /> Tạo mới
+                    </button>
+                  </div>
+                </div>
 
-                      <div className="space-y-2">
-                         <p className="text-xs font-bold text-on-surface">Nguyên liệu:</p>
-                         <ul className="text-sm text-on-surface-variant space-y-1 list-disc pl-4">
-                           {selectedMeal.data.ingredients.slice(0,4).map((ing, i) => (
-                             <li key={i}>{ing}</li>
-                           ))}
-                         </ul>
-                      </div>
-                    </motion.div>
-                  )}
-                </AnimatePresence>
-              </div>
-            </motion.div>
-          )}
-        </AnimatePresence>
+                {cartMessage && (
+                  <div className="mb-4 flex items-center gap-2 bg-green-50 border border-green-200 text-green-700 px-4 py-2.5 rounded-xl text-sm font-bold">
+                    <Check size={16} /> {cartMessage}
+                  </div>
+                )}
+
+                {/* Day Tabs */}
+                <div className="flex gap-2 overflow-x-auto pb-2 mb-6 scrollbar-thin">
+                  {currentPlan.days.map((day, idx) => (
+                    <button
+                      key={day.dayNumber}
+                      onClick={() => setSelectedDayIdx(idx)}
+                      className={`flex-shrink-0 px-4 py-2 rounded-xl font-bold text-sm transition-all ${
+                        selectedDayIdx === idx
+                          ? "bg-primary text-white shadow-md"
+                          : "bg-surface-container text-on-surface-variant hover:bg-primary/10"
+                      }`}
+                    >
+                      Ngày {day.dayNumber}
+                    </button>
+                  ))}
+                </div>
+
+                {/* Day Summary */}
+                {currentDay && (
+                  <div className="mb-4 grid grid-cols-2 sm:grid-cols-4 gap-3">
+                    <MacroCard label="Calo" value={currentDay.totalCalories} unit="kcal" color="text-primary" />
+                    <MacroCard label="Protein" value={currentDay.totalProtein} unit="g" color="text-blue-600" />
+                    <MacroCard label="Carbs" value={currentDay.totalCarbs} unit="g" color="text-amber-600" />
+                    <MacroCard label="Chất béo" value={currentDay.totalFat} unit="g" color="text-red-500" />
+                  </div>
+                )}
+
+                {/* Meals Grid */}
+                {currentDay && (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
+                    {currentDay.meals.map((meal) => (
+                      <MealCard
+                        key={meal.id}
+                        meal={meal}
+                        onSelect={() => setSelectedMeal(meal)}
+                        onRegenerate={() => handleRegenerateMeal(meal.id)}
+                        isRegenerating={regeneratingMealId === meal.id}
+                      />
+                    ))}
+                  </div>
+                )}
+              </motion.div>
+            )}
+          </AnimatePresence>
+        </div>
       </div>
+
+      {/* Meal Detail Modal */}
+      <AnimatePresence>
+        {selectedMeal && (
+          <MealDetailModal meal={selectedMeal} onClose={() => setSelectedMeal(null)} onRegenerate={() => {
+            handleRegenerateMeal(selectedMeal.id);
+            setSelectedMeal(null);
+          }} isRegenerating={regeneratingMealId === selectedMeal.id} />
+        )}
+      </AnimatePresence>
+
+      {/* Shopping List Modal */}
+      <AnimatePresence>
+        {showShoppingList && (
+          <ShoppingListModal
+            items={shoppingList}
+            loading={loadingShoppingList}
+            onClose={() => setShowShoppingList(false)}
+            onAddToCart={handleAddToCart}
+            onPrint={handlePrintPlan}
+            cartMessage={cartMessage}
+          />
+        )}
+      </AnimatePresence>
+
+      {/* Delete Confirm Modal */}
+      <AnimatePresence>
+        {deleteConfirmId && (
+          <DeleteConfirmModal
+            onConfirm={() => handleDeletePlan(deleteConfirmId)}
+            onCancel={() => setDeleteConfirmId(null)}
+          />
+        )}
+      </AnimatePresence>
+
+      {currentPlan && <MealPlanPrintReport plan={currentPlan} shoppingList={shoppingList} />}
     </div>
   );
 }
 
-function Plus({ size, className }: { size: number, className: string }) {
-  return <Sparkles size={size} className={className} />;
+// ─── Sub-components ───────────────────────────────────────────────────────────
+
+function MacroCard({ label, value, unit, color }: { label: string; value: number; unit: string; color: string }) {
+  return (
+    <div className="bg-white rounded-xl border border-outline-variant p-3 text-center">
+      <p className={`text-lg font-bold ${color}`}>{value}</p>
+      <p className="text-xs text-on-surface-variant font-medium">{label} ({unit})</p>
+    </div>
+  );
+}
+
+function MealCard({
+  meal,
+  onSelect,
+  onRegenerate,
+  isRegenerating,
+}: {
+  meal: MealResponse;
+  onSelect: () => void;
+  onRegenerate: () => void;
+  isRegenerating: boolean;
+}) {
+  return (
+    <motion.div
+      layout
+      className="bg-white rounded-2xl border border-outline-variant overflow-hidden hover:shadow-md transition-shadow group"
+    >
+      <button onClick={onSelect} className="w-full text-left p-4">
+        <div className="flex items-start justify-between mb-2">
+          <span className="inline-flex px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wide">
+            {MEAL_TYPE_LABELS[meal.mealType]}
+          </span>
+          <div className={`flex items-center gap-1 text-xs font-bold ${meal.calories > 0 ? "text-primary" : "text-on-surface-variant"}`}>
+            <Zap size={12} className={meal.calories > 0 ? "fill-primary" : ""} />
+            {meal.calories} kcal
+          </div>
+        </div>
+        <h4 className="font-bold text-on-surface text-sm leading-tight mb-1 line-clamp-2">{meal.name}</h4>
+        {meal.description && (
+          <p className="text-xs text-on-surface-variant line-clamp-2 leading-relaxed">{meal.description}</p>
+        )}
+        {meal.products.length > 0 && (
+          <p className="text-xs text-on-surface-variant mt-2">
+            {meal.products.filter((p) => p.isInStock).length}/{meal.products.length} sản phẩm có sẵn
+          </p>
+        )}
+      </button>
+      <div className="px-4 pb-3 flex gap-2">
+        <button
+          onClick={onRegenerate}
+          disabled={isRegenerating}
+          className="flex items-center gap-1 px-3 py-1.5 rounded-lg text-xs font-bold text-primary border border-primary/20 hover:bg-primary/5 transition-colors disabled:opacity-50"
+        >
+          {isRegenerating ? <Loader2 size={12} className="animate-spin" /> : <RefreshCw size={12} />}
+          Tạo lại
+        </button>
+      </div>
+    </motion.div>
+  );
+}
+
+function MealDetailModal({
+  meal,
+  onClose,
+  onRegenerate,
+  isRegenerating,
+}: {
+  meal: MealResponse;
+  onClose: () => void;
+  onRegenerate: () => void;
+  isRegenerating: boolean;
+}) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] overflow-y-auto shadow-2xl"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="sticky top-0 bg-white border-b border-outline-variant p-4 flex items-center justify-between">
+          <div>
+            <span className="inline-flex px-2.5 py-1 rounded-full bg-primary/10 text-primary text-xs font-bold uppercase tracking-wide">
+              {MEAL_TYPE_LABELS[meal.mealType]}
+            </span>
+          </div>
+          <button onClick={onClose} className="p-2 hover:bg-surface-container rounded-xl transition-colors" aria-label="Đóng">
+            <X size={18} />
+          </button>
+        </div>
+
+        <div className="p-5 space-y-5">
+          <div>
+            <h3 className="text-xl font-bold text-on-surface">{meal.name}</h3>
+            {meal.description && <p className="text-sm text-on-surface-variant mt-1 leading-relaxed">{meal.description}</p>}
+          </div>
+
+          {/* Macros */}
+          <div className="grid grid-cols-4 gap-3 text-center">
+            <MacroCard label="Calo" value={meal.calories} unit="kcal" color="text-primary" />
+            <MacroCard label="Protein" value={meal.proteinGrams || 0} unit="g" color="text-blue-600" />
+            <MacroCard label="Carbs" value={meal.carbsGrams || 0} unit="g" color="text-amber-600" />
+            <MacroCard label="Chất béo" value={meal.fatGrams || 0} unit="g" color="text-red-500" />
+          </div>
+
+          {/* Time */}
+          {(meal.preparationMinutes || meal.cookingMinutes) && (
+            <div className="flex gap-4 text-sm text-on-surface-variant">
+              {meal.preparationMinutes && <span>Chuẩn bị: {meal.preparationMinutes} phút</span>}
+              {meal.cookingMinutes && <span>Nấu: {meal.cookingMinutes} phút</span>}
+            </div>
+          )}
+
+          {/* Ingredients */}
+          {meal.ingredients.length > 0 && (
+            <div>
+              <h4 className="font-bold text-sm text-on-surface mb-2">Nguyên liệu</h4>
+              <ul className="space-y-1.5">
+                {meal.ingredients.map((ing, i) => (
+                  <li key={i} className="flex items-center gap-2 text-sm text-on-surface-variant">
+                    <span className="size-1.5 rounded-full bg-primary shrink-0" />
+                    {ing}
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+
+          {/* Cooking Instructions */}
+          {meal.cookingInstructions && (
+            <div>
+              <h4 className="font-bold text-sm text-on-surface mb-2">Các bước nấu</h4>
+              <p className="text-sm text-on-surface-variant leading-relaxed whitespace-pre-line">
+                {meal.cookingInstructions}
+              </p>
+            </div>
+          )}
+
+          {/* Product Suggestions */}
+          {meal.products.length > 0 && (
+            <div>
+              <h4 className="font-bold text-sm text-on-surface mb-2">Sản phẩm gợi ý</h4>
+              <div className="space-y-2">
+                {meal.products.map((prod) => (
+                  <div key={prod.id} className="flex items-center gap-3 p-2 rounded-xl bg-surface-container">
+                    <div className="size-8 rounded-lg bg-white overflow-hidden flex-shrink-0">
+                      {prod.productImageUrl ? (
+                        <img src={prod.productImageUrl} alt={prod.productName || ""} className="size-full object-cover" />
+                      ) : (
+                        <div className="size-full bg-primary/10 flex items-center justify-center">
+                          <UtensilsCrossed size={14} className="text-primary" />
+                        </div>
+                      )}
+                    </div>
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-bold text-on-surface truncate">
+                        {prod.productName || prod.originalIngredientName}
+                      </p>
+                      <p className="text-xs text-on-surface-variant">
+                        {prod.quantity} {prod.unit}
+                        {prod.productPrice && ` · ${prod.productPrice.toLocaleString("vi-VN")} VNĐ`}
+                      </p>
+                    </div>
+                    {prod.isInStock ? (
+                      <span className="flex items-center gap-1 text-xs font-bold text-green-600">
+                        <Check size={12} /> Còn hàng
+                      </span>
+                    ) : (
+                      <span className="flex items-center gap-1 text-xs font-bold text-red-500">
+                        <AlertTriangle size={12} /> Hết hàng
+                      </span>
+                    )}
+                  </div>
+                ))}
+              </div>
+            </div>
+          )}
+
+          {/* Disclaimer */}
+          <div className="flex items-start gap-2 text-xs text-on-surface-variant bg-primary/5 px-3 py-2.5 rounded-xl border border-primary/10">
+            <Info size={12} className="text-primary shrink-0 mt-0.5" />
+            Thông tin dinh dưỡng do AI tạo, chỉ mang tính tham khảo.
+          </div>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function ShoppingListModal({
+  items,
+  loading,
+  onClose,
+  onAddToCart,
+  onPrint,
+  cartMessage,
+}: {
+  items: ShoppingListItem[];
+  loading: boolean;
+  onClose: () => void;
+  onAddToCart: () => void;
+  onPrint: () => void;
+  cartMessage: string | null;
+}) {
+  const inStockItems = items.filter((item) => item.isAnyInStock);
+  const outOfStockItems = items.filter((item) => !item.isAnyInStock);
+
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onClose}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-white rounded-2xl max-w-lg w-full max-h-[85vh] overflow-hidden shadow-2xl flex flex-col"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="p-4 border-b border-outline-variant flex items-center justify-between shrink-0">
+          <h3 className="font-bold text-lg text-on-surface flex items-center gap-2">
+            <ClipboardList size={18} className="text-primary" /> Danh sách cần mua
+            <span className="text-sm font-normal text-on-surface-variant">({items.length} mục)</span>
+          </h3>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={onPrint}
+              disabled={loading}
+              className="p-2 hover:bg-surface-container rounded-xl transition-colors"
+              aria-label="Xuất PDF đầy đủ"
+            >
+              <Printer size={18} />
+            </button>
+            <button onClick={onClose} className="p-2 hover:bg-surface-container rounded-xl transition-colors" aria-label="Đóng">
+              <X size={18} />
+            </button>
+          </div>
+        </div>
+
+        <div className="overflow-y-auto flex-1 p-4">
+          {loading ? (
+            <div className="flex items-center justify-center py-12 gap-3">
+              <Loader2 size={20} className="animate-spin text-primary" />
+              <span className="text-on-surface-variant">Đang tải...</span>
+            </div>
+          ) : items.length === 0 ? (
+            <div className="text-center py-12">
+              <p className="text-on-surface-variant">Không có nguyên liệu nào.</p>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {inStockItems.length > 0 && (
+                <>
+                  <p className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Có sẵn ({inStockItems.length})</p>
+                  {inStockItems.map((item) => (
+                    <ShoppingItem key={item.key} item={item} />
+                  ))}
+                </>
+              )}
+              {outOfStockItems.length > 0 && (
+                <>
+                  <p className="text-xs font-bold text-red-500 uppercase tracking-wide mt-4">Chưa tìm thấy sản phẩm ({outOfStockItems.length})</p>
+                  {outOfStockItems.map((item) => (
+                    <ShoppingItem key={item.key} item={item} />
+                  ))}
+                </>
+              )}
+            </div>
+          )}
+        </div>
+
+        <div className="p-4 border-t border-outline-variant shrink-0">
+          {cartMessage && (
+            <div className="mb-3 flex items-center gap-2 text-sm font-bold text-green-600">
+              <Check size={14} /> {cartMessage}
+            </div>
+          )}
+          <button
+            onClick={onAddToCart}
+            disabled={inStockItems.length === 0}
+            className="w-full h-12 bg-primary text-white rounded-xl font-bold flex items-center justify-center gap-2 hover:brightness-110 transition-colors shadow-md disabled:opacity-50 disabled:grayscale"
+          >
+            <ShoppingCart size={18} />
+            Thêm {inStockItems.length > 0 ? `(${inStockItems.length} sản phẩm)` : "vào giỏ hàng"}
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
+}
+
+function ShoppingItem({ item }: { item: ShoppingListItem }) {
+  return (
+    <div className="p-3 rounded-xl bg-surface-container">
+      <div className="flex items-start justify-between gap-2">
+        <div>
+          <p className="font-bold text-sm text-on-surface">{item.originalIngredientName}</p>
+          <p className="text-xs text-on-surface-variant">
+            {item.totalQuantity} {item.unit}
+            {item.totalEstimatedPrice && item.totalEstimatedPrice > 0 && (
+              <> · ~{item.totalEstimatedPrice.toLocaleString("vi-VN")} VNĐ</>
+            )}
+          </p>
+        </div>
+        {!item.isAnyInStock && (
+          <span className="flex items-center gap-1 text-xs font-bold text-red-500">
+            <AlertTriangle size={12} /> Chưa tìm thấy
+          </span>
+        )}
+      </div>
+      {item.products.length > 0 && (
+        <div className="mt-2 flex flex-wrap gap-1">
+          {item.products.map((prod) => (
+            <span
+              key={prod.id}
+              className={`inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-xs font-medium ${
+                prod.isInStock
+                  ? "bg-green-50 text-green-700 border border-green-200"
+                  : "bg-red-50 text-red-500 border border-red-200"
+              }`}
+            >
+              {prod.isInStock && <Check size={10} />}
+              {prod.productName || prod.originalIngredientName}
+            </span>
+          ))}
+        </div>
+      )}
+    </div>
+  );
+}
+
+function DeleteConfirmModal({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+  return (
+    <motion.div
+      initial={{ opacity: 0 }}
+      animate={{ opacity: 1 }}
+      exit={{ opacity: 0 }}
+      className="fixed inset-0 bg-black/40 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+      onClick={onCancel}
+    >
+      <motion.div
+        initial={{ scale: 0.95, opacity: 0 }}
+        animate={{ scale: 1, opacity: 1 }}
+        exit={{ scale: 0.95, opacity: 0 }}
+        className="bg-white rounded-2xl max-w-sm w-full p-6 shadow-2xl text-center"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <div className="size-12 rounded-full bg-red-50 flex items-center justify-center mx-auto mb-4">
+          <Trash2 size={22} className="text-red-500" />
+        </div>
+        <h3 className="text-lg font-bold text-on-surface mb-2">Xóa thực đơn?</h3>
+        <p className="text-sm text-on-surface-variant mb-6">Hành động này không thể hoàn tác.</p>
+        <div className="flex gap-3">
+          <button
+            onClick={onCancel}
+            className="flex-1 h-11 rounded-xl border-2 border-outline-variant text-on-surface font-bold hover:bg-surface-container transition-colors"
+          >
+            Hủy
+          </button>
+          <button
+            onClick={onConfirm}
+            className="flex-1 h-11 rounded-xl bg-red-500 text-white font-bold hover:bg-red-600 transition-colors"
+          >
+            Xóa
+          </button>
+        </div>
+      </motion.div>
+    </motion.div>
+  );
 }

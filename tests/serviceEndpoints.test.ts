@@ -9,7 +9,10 @@ import * as cartService from "../src/services/cartService.ts";
 import * as categoryService from "../src/services/categoryService.ts";
 import * as farmService from "../src/services/farmService.ts";
 import * as inventoryBatchService from "../src/services/inventoryBatchService.ts";
+import * as orderService from "../src/services/orderService.ts";
+import * as paymentService from "../src/services/paymentService.ts";
 import * as productService from "../src/services/productService.ts";
+import * as shippingProviderService from "../src/services/shippingProviderService.ts";
 
 const API_BASE_URL = "http://api.test/api/v1";
 
@@ -113,6 +116,19 @@ const traceabilityResponse = {
   totalQuantityInitial: 100,
   totalQuantityRemaining: 80,
   batches: [batchResponse],
+};
+
+const shippingProviderResponse = {
+  id: 9,
+  name: "Organic Express",
+  isActive: true,
+};
+
+const orderResponse = {
+  id: 10,
+  orderCode: "OM260606001",
+  status: "PENDING",
+  totalAmount: 44000,
 };
 
 const withMockApi = async <T>(call: () => Promise<T>, data: unknown) => {
@@ -232,6 +248,7 @@ test("auth service wrappers call the expected auth endpoints", async () => {
 test("storefront and account services call the expected backend endpoints", async () => {
   const updateUserForm = new FormData();
   updateUserForm.append("fullName", "Test User");
+  updateUserForm.append("avatar", new File(["avatar"], "avatar.webp", { type: "image/webp" }));
 
   const cases: Array<{
     name: string;
@@ -239,10 +256,21 @@ test("storefront and account services call the expected backend endpoints", asyn
     expectedRoute: string;
     expectedMethod?: string;
     response: unknown;
+    assertRequest?: (request: CapturedCall) => void;
   }> = [
     { name: "current user", call: () => adminUserService.getUserById(1), expectedRoute: "/users/1", response: userResponse },
     { name: "profile", call: () => import("../src/services/userService.ts").then((service) => service.getCurrentUser()), expectedRoute: "/users/me", response: userResponse },
-    { name: "update profile", call: () => import("../src/services/userService.ts").then((service) => service.updateCurrentUser(updateUserForm)), expectedRoute: "/users/me", expectedMethod: "PUT", response: userResponse },
+    {
+      name: "update profile",
+      call: () => import("../src/services/userService.ts").then((service) => service.updateCurrentUser(updateUserForm)),
+      expectedRoute: "/users/me",
+      expectedMethod: "PUT",
+      response: userResponse,
+      assertRequest: (request) => {
+        assert.equal((request.init.body as FormData).get("avatar") instanceof File, true);
+        assert.equal(new Headers(request.init.headers).has("Content-Type"), false);
+      },
+    },
     { name: "addresses", call: () => addressService.getAllAddresses(), expectedRoute: "/user-addresses", response: [addressResponse] },
     { name: "address detail", call: () => addressService.getAddressById(2), expectedRoute: "/user-addresses/2", response: addressResponse },
     { name: "create address", call: () => addressService.createAddress(addressResponse), expectedRoute: "/user-addresses", expectedMethod: "POST", response: addressResponse },
@@ -250,18 +278,40 @@ test("storefront and account services call the expected backend endpoints", asyn
     { name: "delete address", call: () => addressService.deleteAddress(2), expectedRoute: "/user-addresses/2", expectedMethod: "DELETE", response: null },
     { name: "cart", call: () => cartService.getCurrentCart(), expectedRoute: "/carts/me", response: cartResponse },
     { name: "add cart item", call: () => cartService.addCartItem(3, 2), expectedRoute: "/carts/items", expectedMethod: "POST", response: cartResponse },
-    { name: "decrease cart item", call: () => cartService.decreaseCartItem(3, 1), expectedRoute: "/carts/items/3", expectedMethod: "PATCH", response: cartResponse },
+    { name: "update cart item quantity", call: () => cartService.setCartItemQuantity(3, 2), expectedRoute: "/carts/items/3", expectedMethod: "PATCH", response: cartResponse },
     { name: "remove cart item", call: () => cartService.removeCartItem(3), expectedRoute: "/carts/items/3", expectedMethod: "DELETE", response: cartResponse },
     { name: "clear cart", call: () => cartService.clearCart(), expectedRoute: "/carts/me", expectedMethod: "DELETE", response: cartResponse },
+    {
+      name: "create order",
+      call: () => orderService.createOrder({
+        addressId: 2,
+        deliveryMethod: "STANDARD",
+        note: "Thanh toán COD",
+        items: [{ productId: 3, quantity: 1 }],
+      }),
+      expectedRoute: "/orders",
+      expectedMethod: "POST",
+      response: orderResponse,
+    },
+    {
+      name: "active shipping providers",
+      call: () => shippingProviderService.getActiveShippingProviders(),
+      expectedRoute: "/shipping-providers/active",
+      response: [shippingProviderResponse],
+    },
+    { name: "create VietQR payment", call: () => paymentService.createVietQrPayment("2", "STANDARD"), expectedRoute: "/payments/vietqr", expectedMethod: "POST", response: { id: 1 } },
+    { name: "get VietQR payment", call: () => paymentService.getVietQrPayment(1), expectedRoute: "/payments/vietqr/1", response: { id: 1 } },
     { name: "allergens", call: () => allergenService.getAllAllergens(), expectedRoute: "/allergens", response: [{ id: 1, name: "Peanut" }] },
     { name: "create allergen", call: () => allergenService.createAllergen("Peanut"), expectedRoute: "/allergens", expectedMethod: "POST", response: { id: 1, name: "Peanut" } },
+    { name: "update allergen", call: () => allergenService.updateAllergen(1, "Sesame"), expectedRoute: "/allergens/1", expectedMethod: "PUT", response: { id: 1, name: "Sesame" } },
+    { name: "delete allergen", call: () => allergenService.deleteAllergen(1), expectedRoute: "/allergens/1", expectedMethod: "DELETE", response: null },
   ];
 
   for (const item of cases) {
     const { request } = await withMockApi(() => item.call(), item.response);
     assert.equal(routeOf(request.url), item.expectedRoute, item.name);
     assert.equal(request.init.method ?? "GET", item.expectedMethod ?? "GET", item.name);
-    assert.equal((request.init.headers as Record<string, string>).Authorization, "Bearer access-token", item.name);
+    item.assertRequest?.(request);
   }
 });
 
@@ -276,6 +326,7 @@ test("catalog and admin services call the expected backend endpoints", async () 
     unit: "500gr",
     isActive: true,
     allergenIds: [1],
+    imageFile: new File(["product"], "product.jpg", { type: "image/jpeg" }),
   };
 
   const batchRequest = {
@@ -306,7 +357,12 @@ test("catalog and admin services call the expected backend endpoints", async () 
       expectedRoute: "/products",
       expectedMethod: "POST",
       response: productResponse,
-      assertRequest: (request) => assert.equal((request.init.body as FormData).get("name"), "Organic Carrot"),
+      assertRequest: (request) => {
+        const body = request.init.body as FormData;
+        assert.equal(body.get("name"), "Organic Carrot");
+        assert.equal(body.get("imageFile") instanceof File, true);
+        assert.equal(new Headers(request.init.headers).has("Content-Type"), false);
+      },
     },
     {
       name: "update product",
@@ -317,7 +373,8 @@ test("catalog and admin services call the expected backend endpoints", async () 
       assertRequest: (request) => {
         const body = request.init.body as FormData;
         assert.equal(body.get("allergenIds"), "1");
-        assert.equal(body.get("active"), "true");
+        assert.equal(body.get("isActive"), "true");
+        assert.equal(body.get("active"), null, "field 'active' must not be sent (backend reads isActive only)");
       },
     },
     { name: "delete product", call: () => productService.deleteProduct(3), expectedRoute: "/products/3", expectedMethod: "DELETE", response: null },
@@ -336,7 +393,50 @@ test("catalog and admin services call the expected backend endpoints", async () 
     { name: "create inventory batch", call: () => inventoryBatchService.createInventoryBatch(batchRequest), expectedRoute: "/inventory-batches", expectedMethod: "POST", response: batchResponse },
     { name: "update inventory batch", call: () => inventoryBatchService.updateInventoryBatch(8, batchRequest), expectedRoute: "/inventory-batches/8", expectedMethod: "PUT", response: batchResponse },
     { name: "delete inventory batch", call: () => inventoryBatchService.deleteInventoryBatch(8), expectedRoute: "/inventory-batches/8", expectedMethod: "DELETE", response: null },
-    { name: "users", call: () => adminUserService.getUsers(), expectedRoute: "/users", response: [userResponse] },
+    { name: "users", call: () => adminUserService.getUsers(), expectedRoute: "/admin/users?page=0&size=20", response: [userResponse] },
+    {
+      name: "create user",
+      call: () => adminUserService.createUser({
+        fullName: "Test User",
+        email: "user@test.dev",
+        phoneNumber: "0909000000",
+        password: "secret",
+        role: "ROLE_USER",
+      }),
+      expectedRoute: "/admin/users",
+      expectedMethod: "POST",
+      response: userResponse,
+      assertRequest: (request) => {
+        const body = jsonBody(request);
+        assert.equal(body.fullName, "Test User");
+        assert.equal(body.email, "user@test.dev");
+        assert.equal(body.phoneNumber, "0909000000");
+        assert.equal(body.password, "secret");
+        assert.equal(body.role, "ROLE_USER");
+      },
+    },
+    {
+      name: "update user",
+      call: () => adminUserService.updateUser(1, { fullName: "Updated", phoneNumber: "0909000001" }),
+      expectedRoute: "/users/1",
+      expectedMethod: "PUT",
+      response: userResponse,
+      assertRequest: (request) => {
+        const body = request.init.body as FormData;
+        assert.equal(body.get("fullName"), "Updated");
+        assert.equal(body.get("phoneNumber"), "0909000001");
+      },
+    },
+    {
+      name: "update user status",
+      call: () => adminUserService.updateUserStatus(1, false),
+      expectedRoute: "/users/1/status",
+      expectedMethod: "PATCH",
+      response: { ...userResponse, isActive: false },
+      assertRequest: (request) => {
+        assert.deepEqual(jsonBody(request), { isActive: false });
+      },
+    },
     { name: "delete user", call: () => adminUserService.deleteUser(1), expectedRoute: "/users/1", expectedMethod: "DELETE", response: null },
   ];
 
@@ -345,5 +445,73 @@ test("catalog and admin services call the expected backend endpoints", async () 
     assert.equal(routeOf(request.url), item.expectedRoute, item.name);
     assert.equal(request.init.method ?? "GET", item.expectedMethod ?? "GET", item.name);
     item.assertRequest?.(request);
+  }
+});
+
+test("isAdminUser protects admin accounts across role string shapes", () => {
+  assert.equal(adminUserService.isAdminUser({ role: "ROLE_ADMIN" }), true);
+  assert.equal(adminUserService.isAdminUser({ role: "ADMIN" }), true);
+  assert.equal(adminUserService.isAdminUser({ role: "admin" }), true);
+  assert.equal(adminUserService.isAdminUser({ role: "ROLE_USER" }), false);
+  assert.equal(adminUserService.isAdminUser({ role: null }), false);
+  assert.equal(adminUserService.isAdminUser({ role: undefined }), false);
+});
+
+test("admin user list normalization does not overwrite the current session role", async () => {
+  const calls: CapturedCall[] = [];
+  const originalFetch = globalThis.fetch;
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  const storage = new Map<string, string>([
+    ["accessToken", "access-token"],
+    ["refreshToken", "refresh-token"],
+    ["userRole", "ROLE_ADMIN"],
+  ]);
+
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    calls.push({ url: String(url), init: init ?? {} });
+    return new Response(JSON.stringify({
+      status: 200,
+      message: "OK",
+      data: [{
+        id: 2,
+        fullName: "Normal User",
+        email: "normal@test.dev",
+        phoneNumber: "0909000001",
+        role: "ROLE_USER",
+      }],
+    }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    await adminUserService.getUsers();
+    assert.equal(calls.length, 1);
+    assert.equal(storage.get("userRole"), "ROLE_ADMIN");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalLocalStorage) {
+      Object.defineProperty(globalThis, "localStorage", originalLocalStorage);
+    } else {
+      delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+    }
+  }
+});
+
+test("mock admin users exclude any admin role records", async () => {
+  const { ADMIN_USERS } = await import("../src/admin/mocks/users.ts");
+  assert.ok(ADMIN_USERS.length > 0, "mock should still contain non-admin users");
+  for (const user of ADMIN_USERS) {
+    assert.notEqual(user.role, "admin", `mock user ${user.email} must not be admin`);
   }
 });

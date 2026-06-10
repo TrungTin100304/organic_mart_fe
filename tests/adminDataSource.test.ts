@@ -14,10 +14,22 @@ test("loadAdminDataWithFallback returns API data when the request succeeds", asy
   assert.equal(result.error, undefined);
 });
 
-test("loadAdminDataWithFallback returns mock data when the request fails", async () => {
+test("loadAdminDataWithFallback propagates API errors when admin mocks are disabled", async () => {
+  await assert.rejects(
+    () =>
+      loadAdminDataWithFallback(
+        () => Promise.reject(new Error("Network down")),
+        () => ["mock-product"],
+      ),
+    /Network down/,
+  );
+});
+
+test("loadAdminDataWithFallback returns mock data only when explicitly enabled", async () => {
   const result = await loadAdminDataWithFallback(
     () => Promise.reject(new Error("Network down")),
     () => ["mock-product"],
+    true,
   );
 
   assert.deepEqual(result.data, ["mock-product"]);

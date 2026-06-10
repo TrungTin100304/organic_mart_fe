@@ -87,10 +87,9 @@ const productFormData = (values: ProductFormValues) => {
   formData.append("description", values.description?.trim() || "");
   formData.append("storageInstructions", values.storageInstructions?.trim() || "");
   formData.append("detailedDescription", values.detailedDescription?.trim() || "");
-  formData.append("price", String(values.price || 0));
+  formData.append("price", String(Number(values.price) || 0));
   formData.append("unit", values.unit?.trim() || "kg");
-  formData.append("isActive", String(values.isActive));
-  formData.append("active", String(values.isActive));
+  formData.append("isActive", String(Boolean(values.isActive)));
   values.allergenIds?.forEach((id) => formData.append("allergenIds", String(id)));
   if (values.imageFile) {
     formData.append("imageFile", values.imageFile);

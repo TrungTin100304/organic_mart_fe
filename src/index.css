@@ -112,3 +112,224 @@
 .markdown-body {
   @apply text-on-surface leading-relaxed;
 }
+
+.meal-plan-print-report {
+  display: none;
+}
+
+@media print {
+  @page {
+    size: A4;
+    margin: 12mm;
+  }
+
+  body {
+    background: #fff !important;
+  }
+
+  body * {
+    visibility: hidden !important;
+  }
+
+  .meal-plan-print-report,
+  .meal-plan-print-report * {
+    visibility: visible !important;
+  }
+
+  .meal-plan-print-report {
+    display: block !important;
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    color: #1d2915;
+    background: #fff;
+    font-size: 10pt;
+    line-height: 1.45;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+
+  .meal-plan-print-cover {
+    padding: 10mm;
+    border: 1px solid #bfd29e;
+    border-top: 7px solid #486800;
+    background: #f6faed;
+  }
+
+  .meal-plan-print-cover h1,
+  .meal-plan-print-section h2,
+  .meal-plan-print-day h2,
+  .meal-plan-print-meal h3,
+  .meal-plan-print-meal h4 {
+    margin: 0;
+    color: #294200;
+  }
+
+  .meal-plan-print-cover h1 {
+    margin: 2mm 0;
+    font-size: 24pt;
+    line-height: 1.15;
+  }
+
+  .meal-plan-print-eyebrow {
+    margin: 0;
+    color: #587432;
+    font-size: 8pt;
+    font-weight: 800;
+    letter-spacing: 0.12em;
+    text-transform: uppercase;
+  }
+
+  .meal-plan-print-meta-grid,
+  .meal-plan-print-macros {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 3mm;
+    margin-top: 7mm;
+  }
+
+  .meal-plan-print-meta-grid div,
+  .meal-plan-print-macros div {
+    padding: 3mm;
+    border: 1px solid #dce8c9;
+    background: #fff;
+  }
+
+  .meal-plan-print-meta-grid span,
+  .meal-plan-print-meta-grid strong,
+  .meal-plan-print-macros span,
+  .meal-plan-print-macros strong {
+    display: block;
+  }
+
+  .meal-plan-print-meta-grid span,
+  .meal-plan-print-macros span,
+  .meal-plan-print-muted {
+    color: #65705a;
+    font-size: 8.5pt;
+  }
+
+  .meal-plan-print-note {
+    margin-top: 5mm;
+    padding: 3mm;
+    border-left: 3px solid #80b400;
+    background: #fff;
+  }
+
+  .meal-plan-print-section,
+  .meal-plan-print-day {
+    margin-top: 8mm;
+  }
+
+  .meal-plan-print-page-break {
+    break-before: page;
+  }
+
+  .meal-plan-print-heading-row,
+  .meal-plan-print-day-heading,
+  .meal-plan-print-meal-heading {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 6mm;
+  }
+
+  .meal-plan-print-day-heading {
+    padding-bottom: 3mm;
+    border-bottom: 2px solid #486800;
+  }
+
+  .meal-plan-print-meal {
+    margin-top: 6mm;
+    padding: 5mm;
+    border: 1px solid #d8e2c8;
+    break-inside: avoid;
+  }
+
+  .meal-plan-print-meal-heading span {
+    color: #587432;
+    font-size: 8.5pt;
+    font-weight: 700;
+  }
+
+  .meal-plan-print-meal-heading h3 {
+    margin-top: 1mm;
+    font-size: 15pt;
+  }
+
+  .meal-plan-print-meal-heading p {
+    margin: 1mm 0 0;
+    color: #56604c;
+  }
+
+  .meal-plan-print-meal-stats {
+    min-width: 42mm;
+    text-align: right;
+  }
+
+  .meal-plan-print-meal-stats strong,
+  .meal-plan-print-meal-stats span {
+    display: block;
+  }
+
+  .meal-plan-print-recipe-grid {
+    display: grid;
+    grid-template-columns: 0.9fr 1.5fr;
+    gap: 6mm;
+    margin-top: 4mm;
+    padding-top: 4mm;
+    border-top: 1px solid #e4ead9;
+  }
+
+  .meal-plan-print-recipe-grid h4,
+  .meal-plan-print-products h4 {
+    margin-bottom: 2mm;
+    font-size: 10pt;
+  }
+
+  .meal-plan-print-recipe-grid ul {
+    margin: 0;
+    padding-left: 5mm;
+  }
+
+  .meal-plan-print-instructions {
+    margin: 0;
+    white-space: pre-line;
+  }
+
+  .meal-plan-print-products {
+    margin-top: 5mm;
+  }
+
+  .meal-plan-print-table {
+    width: 100%;
+    margin-top: 3mm;
+    border-collapse: collapse;
+    font-size: 8.5pt;
+  }
+
+  .meal-plan-print-table th,
+  .meal-plan-print-table td {
+    padding: 2.5mm;
+    border: 1px solid #d8e2c8;
+    text-align: left;
+    vertical-align: top;
+  }
+
+  .meal-plan-print-table th {
+    background: #edf4e0;
+    color: #294200;
+  }
+
+  .meal-plan-print-table .meal-plan-print-muted {
+    display: block;
+  }
+
+  .meal-plan-print-footer {
+    margin-top: 8mm;
+    padding-top: 4mm;
+    border-top: 1px solid #b9c7a4;
+    color: #65705a;
+    font-size: 8pt;
+  }
+}

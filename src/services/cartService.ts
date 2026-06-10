@@ -45,11 +45,12 @@ export const addCartItem = async (productId: string | number, quantity = 1) => {
   return result;
 };
 
-// Backend currently subtracts this quantity from the item.
-export const decreaseCartItem = async (productId: string | number, quantity = 1) => {
+// Backend PATCH body = new total quantity (absolute, not delta).
+// newQuantity must be >= 1; backend sets 1 if value would go below 1.
+export const setCartItemQuantity = async (productId: string | number, newQuantity: number) => {
   const result = await apiRequest<Cart>(`/carts/items/${productId}`, {
     method: "PATCH",
-    body: toJsonBody({ quantity }),
+    body: toJsonBody({ quantity: newQuantity }),
     requireAuth: true,
   });
   if (typeof window !== "undefined") {

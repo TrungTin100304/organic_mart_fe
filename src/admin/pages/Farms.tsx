@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Edit2, Leaf, Plus, Trash2 } from "lucide-react";
+import AdminConfirmModal from "../components/AdminConfirmModal";
 import { createFarm, deleteFarm, getFarms, updateFarm, type Farm } from "../../services/farmService";
 import { ADMIN_FARMS } from "../mocks/farms";
 import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
@@ -11,6 +12,8 @@ export default function Farms() {
   const [error, setError] = useState("");
   const [dataSource, setDataSource] = useState<AdminDataSource>("api");
   const [dataNotice, setDataNotice] = useState("");
+  const [farmToDelete, setFarmToDelete] = useState<Farm | null>(null);
+  const [isDeleteProcessing, setIsDeleteProcessing] = useState(false);
 
   const loadFarms = async () => {
     setIsLoading(true);
@@ -89,18 +92,27 @@ export default function Farms() {
     }
   };
 
-  const handleDelete = async (farm: Farm) => {
-    if (!window.confirm(`Xóa nông trại "${farm.name}"?`)) return;
+  const handleDelete = (farm: Farm) => {
+    setFarmToDelete(farm);
+  };
+
+  const handleConfirmDelete = async () => {
+    if (!farmToDelete) return;
     if (dataSource === "mock") {
-      setFarms((current) => current.filter((item) => item.id !== farm.id));
+      setFarms((current) => current.filter((item) => item.id !== farmToDelete.id));
+      setFarmToDelete(null);
       return;
     }
 
+    setIsDeleteProcessing(true);
     try {
-      await deleteFarm(farm.id);
+      await deleteFarm(farmToDelete.id);
       await loadFarms();
+      setFarmToDelete(null);
     } catch (err: any) {
       alert(err?.message || "Không thể xóa nông trại.");
+    } finally {
+      setIsDeleteProcessing(false);
     }
   };
 
@@ -152,6 +164,17 @@ export default function Farms() {
           ))}
         </div>
       )}
+      <AdminConfirmModal
+        open={Boolean(farmToDelete)}
+        title="Xóa nông trại"
+        message={`Xóa nông trại "${farmToDelete?.name || ""}"?`}
+        confirmLabel="Xóa"
+        isProcessing={isDeleteProcessing}
+        onClose={() => {
+          if (!isDeleteProcessing) setFarmToDelete(null);
+        }}
+        onConfirm={handleConfirmDelete}
+      />
     </div>
   );
 }

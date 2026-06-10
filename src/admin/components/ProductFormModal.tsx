@@ -1,9 +1,10 @@
 import { useEffect, useRef, useState } from "react";
 import { AnimatePresence, motion } from "motion/react";
-import { Upload, X } from "lucide-react";
+import { ImageIcon, PackagePlus, Trash2, Upload, X } from "lucide-react";
 import type { AdminProduct } from "../types";
 import type { ProductCategory } from "../../services/categoryService";
 import type { ProductFormValues } from "../../services/productService";
+import { IMAGE_ACCEPT, validateImageFile } from "../../utils/imageUpload";
 
 interface ProductFormModalProps {
   product: AdminProduct | null;
@@ -34,35 +35,87 @@ export default function ProductFormModal({
     detailedDescription: "",
   });
   const [imageFile, setImageFile] = useState<File | null>(null);
+  const [previewUrl, setPreviewUrl] = useState("");
+  const [imageError, setImageError] = useState("");
+  const [submitError, setSubmitError] = useState("");
+  const objectUrlRef = useRef<string | null>(null);
 
   useEffect(() => {
     if (!open) return;
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
     setForm({
       name: product?.name || "",
       categoryId: product?.categoryId || (categories[0]?.id ? String(categories[0].id) : ""),
       price: product?.price ? String(product.price) : "",
       unit: product?.unit || "kg",
-      status: product?.status || "active",
+      status: product?.status === "draft" ? "draft" : "active",
       description: product?.description || "",
       storageInstructions: product?.storageInstructions || "",
       detailedDescription: product?.detailedDescription || "",
     });
     setImageFile(null);
+    setPreviewUrl(product?.image || "");
+    setImageError("");
+    setSubmitError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
   }, [open, product, categories]);
+
+  useEffect(() => () => {
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+  }, []);
+
+  const resetSelectedImage = () => {
+    if (objectUrlRef.current) {
+      URL.revokeObjectURL(objectUrlRef.current);
+      objectUrlRef.current = null;
+    }
+    setImageFile(null);
+    setPreviewUrl(product?.image || "");
+    setImageError("");
+    if (fileInputRef.current) fileInputRef.current.value = "";
+  };
+
+  const handleImageChange = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file) return;
+
+    const error = validateImageFile(file);
+    if (error) {
+      setImageError(error);
+      return;
+    }
+
+    if (objectUrlRef.current) URL.revokeObjectURL(objectUrlRef.current);
+    const objectUrl = URL.createObjectURL(file);
+    objectUrlRef.current = objectUrl;
+    setImageFile(file);
+    setPreviewUrl(objectUrl);
+    setImageError("");
+    setSubmitError("");
+  };
 
   const handleSubmit = async (event: React.FormEvent) => {
     event.preventDefault();
-    await onSubmit({
-      name: form.name,
-      categoryId: form.categoryId,
-      price: form.price,
-      unit: form.unit,
-      description: form.description,
-      storageInstructions: form.storageInstructions,
-      detailedDescription: form.detailedDescription,
-      isActive: form.status === "active",
-      imageFile,
-    });
+    setSubmitError("");
+    try {
+      await onSubmit({
+        name: form.name,
+        categoryId: form.categoryId,
+        price: form.price,
+        unit: form.unit,
+        description: form.description,
+        storageInstructions: form.storageInstructions,
+        detailedDescription: form.detailedDescription,
+        isActive: form.status === "active",
+        imageFile,
+      });
+    } catch (error: any) {
+      setSubmitError(error?.message || "Không thể lưu sản phẩm.");
+    }
   };
 
   return (
@@ -84,22 +137,58 @@ export default function ProductFormModal({
                 </button>
               </div>
               <div className="space-y-4">
-                <button
-                  type="button"
-                  onClick={() => fileInputRef.current?.click()}
-                  className="w-full border-2 border-dashed border-outline-variant/40 rounded-2xl p-8 text-center hover:border-primary/40 transition-colors cursor-pointer"
-                >
-                  <Upload className="w-8 h-8 text-on-surface-variant/40 mx-auto mb-2" />
-                  <p className="text-sm text-on-surface-variant">{imageFile ? imageFile.name : "Click để tải ảnh sản phẩm"}</p>
-                  <p className="text-xs text-on-surface-variant/50 mt-1">PNG, JPG tối đa 5MB</p>
-                  <input
-                    ref={fileInputRef}
-                    type="file"
-                    accept="image/*"
-                    className="hidden"
-                    onChange={(event) => setImageFile(event.target.files?.[0] || null)}
-                  />
-                </button>
+                <input
+                  ref={fileInputRef}
+                  type="file"
+                  accept={IMAGE_ACCEPT}
+                  className="hidden"
+                  onChange={handleImageChange}
+                  disabled={isSubmitting}
+                />
+                {previewUrl && (
+                  <div className="flex flex-col gap-4 rounded-2xl border border-outline-variant/30 bg-surface-container-low/40 p-4 sm:flex-row">
+                    <div className="aspect-square w-full shrink-0 overflow-hidden rounded-xl border border-outline-variant/30 bg-white sm:w-36">
+                      <img src={previewUrl} alt="Xem trước ảnh sản phẩm" className="size-full object-contain" />
+                    </div>
+                    <div className="flex min-w-0 flex-1 flex-col justify-center">
+                      <p className="truncate text-sm font-bold text-on-surface">{imageFile?.name || "Ảnh sản phẩm hiện tại"}</p>
+                      <p className="mt-1 text-xs text-on-surface-variant">JPEG, PNG hoặc WEBP, tối đa 5MB</p>
+                      <div className="mt-3 flex flex-wrap gap-2">
+                        <button
+                          type="button"
+                          disabled={isSubmitting}
+                          onClick={() => fileInputRef.current?.click()}
+                          className="inline-flex items-center gap-1.5 rounded-xl bg-primary px-3 py-2 text-xs font-bold text-white disabled:opacity-50"
+                        >
+                          <Upload className="size-3.5" /> Đổi ảnh
+                        </button>
+                        {imageFile && (
+                          <button
+                            type="button"
+                            disabled={isSubmitting}
+                            onClick={resetSelectedImage}
+                            className="inline-flex items-center gap-1.5 rounded-xl border border-outline-variant/40 px-3 py-2 text-xs font-bold text-on-surface-variant disabled:opacity-50"
+                          >
+                            <Trash2 className="size-3.5" /> Xóa ảnh đã chọn
+                          </button>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
+                {!previewUrl && (
+                  <button
+                    type="button"
+                    disabled={isSubmitting}
+                    onClick={() => fileInputRef.current?.click()}
+                    className="w-full border-2 border-dashed border-outline-variant/40 rounded-2xl p-8 text-center hover:border-primary/40 transition-colors cursor-pointer disabled:opacity-50"
+                  >
+                    <ImageIcon className="w-8 h-8 text-on-surface-variant/40 mx-auto mb-2" />
+                    <p className="text-sm font-bold text-on-surface">Chọn ảnh sản phẩm</p>
+                    <p className="text-xs text-on-surface-variant/50 mt-1">JPEG, PNG hoặc WEBP, tối đa 5MB</p>
+                  </button>
+                )}
+                {imageError && <p className="text-sm font-semibold text-red-600">{imageError}</p>}
                 <div className="grid grid-cols-2 gap-4">
                   <div className="col-span-2">
                     <label className="text-xs font-bold text-on-surface-variant mb-1.5 block">Tên sản phẩm</label>
@@ -131,6 +220,8 @@ export default function ProductFormModal({
                     <input
                       required
                       type="number"
+                      min="0"
+                      step="0.01"
                       value={form.price}
                       onChange={(event) => setForm({ ...form, price: event.target.value })}
                       className="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm bg-surface-container-lowest outline-none focus:border-primary/40 transition-all"
@@ -141,7 +232,9 @@ export default function ProductFormModal({
                     <input
                       value={form.unit}
                       onChange={(event) => setForm({ ...form, unit: event.target.value })}
+                      onBlur={(event) => setForm({ ...form, unit: event.target.value.trim() || "kg" })}
                       className="w-full border border-outline-variant/30 rounded-xl px-4 py-2.5 text-sm bg-surface-container-lowest outline-none focus:border-primary/40 transition-all"
+                      placeholder="kg"
                     />
                   </div>
                   <div>
@@ -182,6 +275,17 @@ export default function ProductFormModal({
                     />
                   </div>
                 </div>
+                {!product && (
+                  <div className="flex items-start gap-2.5 rounded-xl bg-primary/5 border border-primary/15 px-3.5 py-3 text-sm text-on-surface-variant">
+                    <PackagePlus className="w-4 h-4 text-primary mt-0.5 shrink-0" />
+                    <p><span className="font-bold text-on-surface">Số lượng được quản lý theo từng lô nhập kho.</span> Sau khi tạo sản phẩm, bấm biểu tượng nhập kho trên thẻ sản phẩm để thêm số lượng.</p>
+                  </div>
+                )}
+                {submitError && (
+                  <p role="alert" className="rounded-xl border border-red-200 bg-red-50 px-3.5 py-3 text-sm font-semibold text-red-700">
+                    {submitError}
+                  </p>
+                )}
                 <div className="flex gap-3 pt-2">
                   <button type="button" onClick={onClose} className="flex-1 py-2.5 border border-outline-variant/30 rounded-xl text-sm font-bold text-on-surface-variant hover:bg-surface-container transition-colors">Hủy</button>
                   <button disabled={isSubmitting} type="submit" className="flex-1 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all disabled:opacity-50">
