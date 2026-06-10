@@ -29,7 +29,6 @@ import {
   type DeliveryMethod,
 } from "../services/orderService";
 import {
-  completeVietQrOrder,
   createVietQrPayment,
   getVietQrPayment,
   type VietQrPayment,
@@ -172,35 +171,14 @@ export default function Checkout() {
     const interval = window.setInterval(async () => {
       try {
         const updated = await getVietQrPayment(paymentId);
-        if (updated.status !== "PENDING") {
+        setVietQrPayment(updated);
+
+        if (updated.status === "PAID" && updated.orderId && updated.orderCode) {
           window.clearInterval(interval);
-          // SePay webhook already created the order → navigate to success immediately
-          if (updated.status === "PAID" && updated.orderId && updated.orderCode) {
-            const order: OrderResponse = {
-              id: updated.orderId,
-              orderCode: updated.orderCode,
-              userId: 0, userFullName: "",
-              addressId: 0, addressLabel: null,
-              shippingRecipientSnapshot: "", shippingPhoneSnapshot: "",
-              shippingAddressSnapshot: "", shippingProviderNameSnapshot: "",
-              promotion: null, subtotal: 0, discountAmount: 0, shippingFee: 0,
-              totalAmount: updated.amount, status: "PENDING",
-              note: null, details: [], statusHistories: [],
-              createdAt: "", updatedAt: "",
-              deliveryMethod: null, deliveryDate: null, deliverySlotId: null,
-              deliverySlotSnapshot: null, buildingCodeSnapshot: null, buildingNameSnapshot: null,
-              floorSnapshot: null, apartmentNumberSnapshot: null,
-              recipientNameSnapshot: null, recipientPhoneSnapshot: null,
-              deliveryNoteSnapshot: null,
-            };
-            setVietQrPayment(updated);
-            markCartEmpty();
-            setCreatedOrder(order);
-            return;
-          }
-          setVietQrPayment(updated);
-        } else {
-          setVietQrPayment(updated);
+          markCartEmpty();
+          setCreatedOrder(buildMockOrder(updated));
+        } else if (updated.status !== "PENDING") {
+          window.clearInterval(interval);
         }
       } catch {
         // keep polling
@@ -298,47 +276,32 @@ export default function Checkout() {
     }
   };
 
-  const handleCompleteVietQrOrder = async () => {
+  const handleCompleteVietQrOrder = () => {
     if (!vietQrPayment || vietQrPayment.status !== "PAID") return;
-    // Order already created by SePay webhook → skip API call, go straight to success
     if (vietQrPayment.orderId && vietQrPayment.orderCode) {
-      const order: OrderResponse = {
-        id: vietQrPayment.orderId,
-        orderCode: vietQrPayment.orderCode,
-        userId: 0, userFullName: "",
-        addressId: 0, addressLabel: null,
-        shippingRecipientSnapshot: "", shippingPhoneSnapshot: "",
-        shippingAddressSnapshot: "", shippingProviderNameSnapshot: "",
-        promotion: null, subtotal: 0, discountAmount: 0, shippingFee: 0,
-        totalAmount: vietQrPayment.amount, status: "PENDING",
-        note: null, details: [], statusHistories: [],
-        createdAt: "", updatedAt: "",
-        deliveryMethod: null, deliveryDate: null, deliverySlotId: null,
-        deliverySlotSnapshot: null, buildingCodeSnapshot: null, buildingNameSnapshot: null,
-        floorSnapshot: null, apartmentNumberSnapshot: null,
-        recipientNameSnapshot: null, recipientPhoneSnapshot: null,
-        deliveryNoteSnapshot: null,
-      };
       setVietQrPayment(null);
       markCartEmpty();
-      setCreatedOrder(order);
-      return;
-    }
-    setIsCreatingOrder(true);
-    setActionError("");
-    try {
-      const order = await completeVietQrOrder(vietQrPayment.id);
-      if (order) {
-        setCreatedOrder(order);
-        setVietQrPayment(null);
-        markCartEmpty();
-      }
-    } catch (err: unknown) {
-      setActionError(getErrorMessage(err, "Không thể hoàn tất đơn hàng từ thanh toán."));
-    } finally {
-      setIsCreatingOrder(false);
+      setCreatedOrder(buildMockOrder(vietQrPayment));
     }
   };
+
+  const buildMockOrder = (payment: VietQrPayment): OrderResponse => ({
+    id: payment.orderId!,
+    orderCode: payment.orderCode!,
+    userId: 0, userFullName: "",
+    addressId: 0, addressLabel: null,
+    shippingRecipientSnapshot: "", shippingPhoneSnapshot: "",
+    shippingAddressSnapshot: "", shippingProviderNameSnapshot: "",
+    promotion: null, subtotal: 0, discountAmount: 0, shippingFee: 0,
+    totalAmount: payment.amount, status: "PENDING" as const,
+    note: null, details: [], statusHistories: [],
+    createdAt: "", updatedAt: "",
+    deliveryMethod: null, deliveryDate: null, deliverySlotId: null,
+    deliverySlotSnapshot: null, buildingCodeSnapshot: null, buildingNameSnapshot: null,
+    floorSnapshot: null, apartmentNumberSnapshot: null,
+    recipientNameSnapshot: null, recipientPhoneSnapshot: null,
+    deliveryNoteSnapshot: null,
+  });
 
   const handleApplyPromo = () => {
     if (!promotionCode.trim()) {
