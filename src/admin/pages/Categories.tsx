@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Plus, FolderTree } from "lucide-react";
+import CategoryFormModal, { type CategoryFormValues } from "../components/CategoryFormModal";
 import { createProductCategory, getProductCategories, type ProductCategory } from "../../services/categoryService";
 import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
 import { getMockProductCategories } from "../utils/mockAdapters";
@@ -11,6 +12,8 @@ export default function Categories() {
   const [error, setError] = useState("");
   const [dataSource, setDataSource] = useState<AdminDataSource>("api");
   const [dataNotice, setDataNotice] = useState("");
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   const loadCategories = async () => {
     setIsLoading(true);
@@ -28,32 +31,32 @@ export default function Categories() {
     }
   };
 
-  useEffect(() => {
-    void loadCategories();
-  }, []);
+  useEffect(() => { void loadCategories(); }, []);
 
-  const handleCreate = async () => {
-    const name = window.prompt("Tên danh mục mới");
-    if (!name?.trim()) return;
-    if (dataSource === "mock") {
-      setCategories((current) => [
-        ...current,
-        {
-          id: Date.now(),
-          name: name.trim(),
-          slug: name.trim().toLowerCase().replace(/\s+/g, "-"),
-          parentId: null,
-          sortOrder: current.length + 1,
-        },
-      ]);
-      return;
-    }
-
+  const handleFormSubmit = async (values: CategoryFormValues) => {
+    setIsSubmitting(true);
     try {
-      await createProductCategory({ name: name.trim(), sortOrder: categories.length + 1 });
+      if (dataSource === "mock") {
+        setCategories((current) => [
+          ...current,
+          {
+            id: Date.now(),
+            name: values.name,
+            slug: values.name.toLowerCase().replace(/\s+/g, "-"),
+            parentId: null,
+            sortOrder: current.length + 1,
+          },
+        ]);
+        setIsFormModalOpen(false);
+        return;
+      }
+      await createProductCategory({ name: values.name, sortOrder: categories.length + 1 });
+      setIsFormModalOpen(false);
       await loadCategories();
     } catch (err: any) {
-      alert(err?.message || "Không thể tạo danh mục.");
+      throw err;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -64,7 +67,7 @@ export default function Categories() {
           <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Danh mục</h1>
           <p className="text-sm text-on-surface-variant mt-0.5">{categories.length} danh mục {sourceLabel(dataSource)}</p>
         </div>
-        <button onClick={handleCreate} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all">
+        <button onClick={() => setIsFormModalOpen(true)} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all">
           <Plus className="w-4 h-4" /> Thêm danh mục
         </button>
       </motion.div>
@@ -88,7 +91,7 @@ export default function Categories() {
                   <FolderTree className="w-6 h-6" />
                 </div>
                 <div className="flex-1">
-                  <h3 className="font-bold text-on-surface">{category.name}</h3>
+                  <p className="font-bold text-on-surface">{category.name}</p>
                   <p className="text-xs text-on-surface-variant">{category.slug}</p>
                 </div>
               </div>
@@ -100,6 +103,13 @@ export default function Categories() {
           ))}
         </div>
       )}
+
+      <CategoryFormModal
+        open={isFormModalOpen}
+        isSubmitting={isSubmitting}
+        onClose={() => setIsFormModalOpen(false)}
+        onSubmit={handleFormSubmit}
+      />
     </div>
   );
 }

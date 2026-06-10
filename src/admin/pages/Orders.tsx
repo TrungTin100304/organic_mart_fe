@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { ChevronLeft, ChevronRight, Eye, LoaderCircle, Search } from "lucide-react";
+import AdminConfirmModal from "../components/AdminConfirmModal";
 import {
   getAdminOrderById,
   getAdminOrders,
@@ -46,6 +47,7 @@ export default function Orders() {
   const [loading, setLoading] = useState(true);
   const [updatingId, setUpdatingId] = useState<number | null>(null);
   const [error, setError] = useState("");
+  const [orderToAdvance, setOrderToAdvance] = useState<AdminOrderListItem | null>(null);
 
   const loadOrders = async (targetPage = page) => {
     setLoading(true);
@@ -81,19 +83,21 @@ export default function Orders() {
     }
   };
 
-  const advanceOrder = async (order: AdminOrderListItem) => {
-    const target = nextStatus[order.status];
+  const advanceOrder = async () => {
+    if (!orderToAdvance) return;
+    const target = nextStatus[orderToAdvance.status];
     if (!target) return;
-    setUpdatingId(order.id);
+    setUpdatingId(orderToAdvance.id);
     setError("");
     try {
-      await updateAdminOrderStatus(order.id, target, `Admin cập nhật sang ${target}`);
+      await updateAdminOrderStatus(orderToAdvance.id, target, `Admin cập nhật sang ${target}`);
       await loadOrders(page);
-      if (selected?.id === order.id) setSelected(await getAdminOrderById(order.id));
+      if (selected?.id === orderToAdvance.id) setSelected(await getAdminOrderById(orderToAdvance.id));
     } catch (err) {
       setError(err instanceof Error ? err.message : "Không thể cập nhật trạng thái đơn hàng.");
     } finally {
       setUpdatingId(null);
+      setOrderToAdvance(null);
     }
   };
 
@@ -145,7 +149,7 @@ export default function Orders() {
                     <td className="px-5 py-3.5 text-xs text-on-surface-variant">{new Date(order.createdAt).toLocaleString("vi-VN")}</td>
                     <td className="px-5 py-3.5"><div className="flex justify-end gap-2">
                       <button onClick={() => void openDetail(order.id)} className="p-2 rounded-lg hover:bg-surface-container" title="Xem chi tiết"><Eye className="w-4 h-4" /></button>
-                      {nextStatus[order.status] && <button disabled={updatingId === order.id} onClick={() => void advanceOrder(order)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">{updatingId === order.id ? "Đang lưu..." : `Chuyển: ${statusLabel(nextStatus[order.status]!)}`}</button>}
+                      {nextStatus[order.status] && <button disabled={updatingId === order.id} onClick={() => setOrderToAdvance(order)} className="rounded-lg bg-primary px-3 py-1.5 text-xs font-bold text-white disabled:opacity-50">{updatingId === order.id ? "Đang lưu..." : `Chuyển: ${statusLabel(nextStatus[order.status]!)}`}</button>}
                     </div></td>
                   </tr>
                 ))}
@@ -165,13 +169,23 @@ export default function Orders() {
       {selected && <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/30 p-4" onClick={() => setSelected(null)}>
         <div className="max-h-[90vh] w-full max-w-2xl overflow-y-auto rounded-2xl bg-white p-6 shadow-2xl" onClick={(event) => event.stopPropagation()}>
           <div className="flex justify-between gap-4"><div><h2 className="text-lg font-bold text-primary">{selected.orderCode}</h2><p className="text-sm text-on-surface-variant">{selected.userFullName || `User #${selected.userId}`}</p></div><button onClick={() => setSelected(null)} className="font-bold">Đóng</button></div>
-          <div className="mt-5 grid gap-3 sm:grid-cols-2"><p><strong>Trạng thái:</strong> {statusLabel(selected.status)}</p><p><strong>Tổng tiền:</strong> {money(selected.totalAmount)}</p><p className="sm:col-span-2"><strong>Địa chỉ:</strong> {selected.shippingAddressSnapshot || "Chưa có dữ liệu"}</p><p className="sm:col-span-2"><strong>Ghi chú:</strong> {selected.note || "Không có"}</p></div>
+          <div className="mt-5 grid gap-3 sm:grid-cols-2"><p><strong>Trạng thái:</strong> {statusLabel(selected.status)}</p><p><strong>Tổng tiền:</strong> {money(selected.totalAmount)}</p><p className="sm:col-span-2"><strong>�ịa chỉ:</strong> {selected.shippingAddressSnapshot || "Chưa có dữ liệu"}</p><p className="sm:col-span-2"><strong>Ghi chú:</strong> {selected.note || "Không có"}</p></div>
           <h3 className="mt-6 font-bold">Sản phẩm</h3>
           <div className="mt-2 space-y-2">{selected.details.map((item) => <div key={item.id} className="flex justify-between rounded-xl bg-surface-container-low p-3"><span>{item.productName || "Sản phẩm"} x {item.quantity}</span><strong>{money(item.lineSubtotal)}</strong></div>)}</div>
           <h3 className="mt-6 font-bold">Lịch sử trạng thái</h3>
           <div className="mt-2 space-y-2">{selected.statusHistories.map((item) => <div key={item.id} className="rounded-xl border border-outline-variant/20 p-3 text-sm"><strong>{statusLabel(item.toStatus)}</strong> · {new Date(item.createdAt).toLocaleString("vi-VN")}<p className="text-on-surface-variant">{item.note || "Không có ghi chú"}{item.changedByName ? ` · ${item.changedByName}` : ""}</p></div>)}</div>
         </div>
       </div>}
+
+      <AdminConfirmModal
+        open={Boolean(orderToAdvance)}
+        title={`Chuyển trạng thái đơn #${orderToAdvance?.orderCode ?? ""}`}
+        message={`Xác nhận chuyển đơn "${orderToAdvance?.orderCode}" sang "${orderToAdvance ? statusLabel(nextStatus[orderToAdvance.status]!) : ""}"?`}
+        confirmLabel="Xác nhận"
+        isProcessing={Boolean(updatingId)}
+        onClose={() => !updatingId && setOrderToAdvance(null)}
+        onConfirm={advanceOrder}
+      />
     </div>
   );
 }

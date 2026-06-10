@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import {
   CheckCircle2,
   ChevronRight,
@@ -761,6 +761,8 @@ export default function Checkout() {
 
 // ── Order success screen ────────────────────────────────────────────────────────
 function OrderSuccess({ order, total }: { order: OrderResponse; total: number }) {
+  const navigate = useNavigate();
+
   return (
     <motion.section
       initial={{ opacity: 0, y: 20 }}
@@ -796,17 +798,17 @@ function OrderSuccess({ order, total }: { order: OrderResponse; total: number })
         </div>
         <div className="mt-8 flex flex-col gap-3 sm:flex-row sm:justify-center">
           <Link
-            to="/account"
+            to="/account?tab=orders"
             className="flex min-h-12 items-center justify-center rounded-xl bg-primary px-6 font-bold text-white transition-colors hover:brightness-105"
           >
-            Xem tài khoản
+            Xem đơn hàng
           </Link>
-          <Link
-            to="/shop"
+          <button
+            onClick={() => navigate("/shop")}
             className="flex min-h-12 items-center justify-center rounded-xl border border-outline-variant px-6 font-bold text-on-surface transition-colors hover:border-primary hover:text-primary"
           >
             Tiếp tục mua sắm
-          </Link>
+          </button>
         </div>
       </div>
     </motion.section>

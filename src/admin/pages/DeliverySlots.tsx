@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Clock, Plus, Edit2, Power } from "lucide-react";
 import AdminConfirmModal from "../components/AdminConfirmModal";
+import DeliverySlotFormModal, { type DeliverySlotFormValues } from "../components/DeliverySlotFormModal";
 import {
   getAllDeliverySlots,
   createDeliverySlot,
@@ -15,6 +16,8 @@ export default function DeliverySlots() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [slotToToggle, setSlotToToggle] = useState<DeliverySlot | null>(null);
+  const [editingSlot, setEditingSlot] = useState<DeliverySlot | null>(null);
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const loadSlots = async () => {
@@ -32,59 +35,36 @@ export default function DeliverySlots() {
 
   useEffect(() => { void loadSlots(); }, []);
 
-  const handleCreate = async () => {
-    const name = window.prompt("Tên khung giờ (VD: 08:00 - 10:00):");
-    if (!name?.trim()) return;
-    const startTime = window.prompt("Giờ bắt đầu (VD: 08:00:00):");
-    if (!startTime?.trim()) return;
-    const endTime = window.prompt("Giờ kết thúc (VD: 10:00:00):");
-    if (!endTime?.trim()) return;
-    const cutoffMinutes = parseInt(window.prompt("Phút cắt trước khi giao (VD: 30):", "30") || "30", 10);
-    const maximumOrders = parseInt(window.prompt("Số đơn tối đa (VD: 10):", "10") || "10", 10);
-    const displayOrder = parseInt(window.prompt("Thứ tự hiển thị:", "0") || "0", 10);
-
-    setIsProcessing(true);
-    try {
-      await createDeliverySlot({
-        name: name.trim(),
-        startTime: startTime.trim(),
-        endTime: endTime.trim(),
-        cutoffMinutes,
-        maximumOrders,
-        displayOrder,
-        isActive: true,
-      });
-      await loadSlots();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Không thể tạo khung giờ.");
-    } finally {
-      setIsProcessing(false);
-    }
+  const openCreate = () => {
+    setEditingSlot(null);
+    setIsFormModalOpen(true);
   };
 
-  const handleEdit = async (slot: DeliverySlot) => {
-    const name = window.prompt("Tên khung giờ:", slot.name);
-    if (!name?.trim()) return;
-    const startTime = window.prompt("Giờ bắt đầu:", slot.startTime) || slot.startTime;
-    const endTime = window.prompt("Giờ kết thúc:", slot.endTime) || slot.endTime;
-    const cutoffMinutes = parseInt(window.prompt("Phút cắt trước:", String(slot.cutoffMinutes)) || String(slot.cutoffMinutes), 10);
-    const maximumOrders = parseInt(window.prompt("Số đơn tối đa:", String(slot.maximumOrders)) || String(slot.maximumOrders), 10);
-    const displayOrder = parseInt(window.prompt("Thứ tự hiển thị:", String(slot.displayOrder)) || String(slot.displayOrder), 10);
+  const openEdit = (slot: DeliverySlot) => {
+    setEditingSlot(slot);
+    setIsFormModalOpen(true);
+  };
 
+  const handleFormSubmit = async (values: DeliverySlotFormValues) => {
     setIsProcessing(true);
     try {
-      await updateDeliverySlot(slot.id, {
-        name: name.trim(),
-        startTime: startTime.trim(),
-        endTime: endTime.trim(),
-        cutoffMinutes,
-        maximumOrders,
-        displayOrder,
-        isActive: slot.isActive,
-      });
+      if (editingSlot) {
+        await updateDeliverySlot(editingSlot.id, {
+          name: values.name,
+          startTime: values.startTime,
+          endTime: values.endTime,
+          cutoffMinutes: values.cutoffMinutes,
+          maximumOrders: values.maximumOrders,
+          displayOrder: values.displayOrder,
+          isActive: editingSlot.isActive,
+        });
+      } else {
+        await createDeliverySlot({ ...values, isActive: true });
+      }
+      setIsFormModalOpen(false);
       await loadSlots();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Không thể cập nhật khung giờ.");
+      throw err;
     } finally {
       setIsProcessing(false);
     }
@@ -124,7 +104,7 @@ export default function DeliverySlots() {
           </p>
         </div>
         <button
-          onClick={handleCreate}
+          onClick={openCreate}
           disabled={isProcessing}
           className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all disabled:opacity-50"
         >
@@ -178,7 +158,7 @@ export default function DeliverySlots() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={() => handleEdit(slot)}
+                          onClick={() => openEdit(slot)}
                           className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
                           title="Sửa"
                         >
@@ -217,6 +197,14 @@ export default function DeliverySlots() {
         isProcessing={isProcessing}
         onClose={() => !isProcessing && setSlotToToggle(null)}
         onConfirm={handleConfirmToggle}
+      />
+
+      <DeliverySlotFormModal
+        open={isFormModalOpen}
+        initial={editingSlot ?? undefined}
+        isSubmitting={isProcessing}
+        onClose={() => !isProcessing && setIsFormModalOpen(false)}
+        onSubmit={handleFormSubmit}
       />
     </div>
   );

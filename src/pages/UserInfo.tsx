@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useSearchParams } from 'react-router-dom';
 import { ProfileCard } from '@/components/ProfileCard';
 import { useUser } from '@/hooks/useUser';
 import * as addressService from '@/services/addressService';
@@ -45,6 +45,7 @@ const ORDER_STATUS_LABELS: Record<string, string> = {
 
 const UserInfoPage: React.FC = () => {
   const navigate = useNavigate();
+  const [searchParams] = useSearchParams();
   const { user, isLoading, error, refetch, updatePreference } = useUser();
   const [addresses, setAddresses] = useState<Address[]>([]);
   const [isAddressesLoading, setIsAddressesLoading] = useState(true);
@@ -52,8 +53,15 @@ const UserInfoPage: React.FC = () => {
   const [isOrdersLoading, setIsOrdersLoading] = useState(false);
   const [ordersError, setOrdersError] = useState('');
 
-  // Active sidebar tab
+  // Active sidebar tab — sync with ?tab= URL param
   const [activeTab, setActiveTab] = useState<TabKey>('profile');
+
+  useEffect(() => {
+    const tab = searchParams.get('tab') as TabKey | null;
+    if (tab && TABS.some((t) => t.key === tab)) {
+      setActiveTab(tab);
+    }
+  }, [searchParams]);
 
   // Allergen state
   const [allergens, setAllergens] = useState<Allergen[]>([]);

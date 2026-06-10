@@ -1,7 +1,8 @@
 import { useEffect, useState } from "react";
 import { motion } from "motion/react";
-import { Building2, Plus, Edit2, Power, Trash2 } from "lucide-react";
+import { Building2, Plus, Edit2, Power } from "lucide-react";
 import AdminConfirmModal from "../components/AdminConfirmModal";
+import BuildingFormModal, { type BuildingFormValues } from "../components/BuildingFormModal";
 import {
   getAllBuildings,
   createBuilding,
@@ -15,6 +16,8 @@ export default function Buildings() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
   const [buildingToToggle, setBuildingToToggle] = useState<ResidentialBuilding | null>(null);
+  const [editingBuilding, setEditingBuilding] = useState<ResidentialBuilding | null>(null);
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
   const [isProcessing, setIsProcessing] = useState(false);
 
   const loadBuildings = async () => {
@@ -32,49 +35,34 @@ export default function Buildings() {
 
   useEffect(() => { void loadBuildings(); }, []);
 
-  const handleCreate = async () => {
-    const code = window.prompt("Mã tòa nhà (VD: A, B, C):");
-    if (!code?.trim()) return;
-    const name = window.prompt("Tên tòa nhà:");
-    if (!name?.trim()) return;
-    const description = window.prompt("Mô tả (tuỳ chọn):") || "";
-    const displayOrder = parseInt(window.prompt("Thứ tự hiển thị:", "0") || "0", 10);
-
-    setIsProcessing(true);
-    try {
-      await createBuilding({
-        code: code.trim().toUpperCase(),
-        name: name.trim(),
-        description,
-        displayOrder,
-        isActive: true,
-      });
-      await loadBuildings();
-    } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Không thể tạo tòa nhà.");
-    } finally {
-      setIsProcessing(false);
-    }
+  const openCreate = () => {
+    setEditingBuilding(null);
+    setIsFormModalOpen(true);
   };
 
-  const handleEdit = async (building: ResidentialBuilding) => {
-    const name = window.prompt("Tên tòa nhà:", building.name);
-    if (!name?.trim()) return;
-    const description = window.prompt("Mô tả:", building.description || "") || "";
-    const displayOrder = parseInt(window.prompt("Thứ tự hiển thị:", String(building.displayOrder)) || String(building.displayOrder), 10);
+  const openEdit = (building: ResidentialBuilding) => {
+    setEditingBuilding(building);
+    setIsFormModalOpen(true);
+  };
 
+  const handleFormSubmit = async (values: BuildingFormValues) => {
     setIsProcessing(true);
     try {
-      await updateBuilding(building.id, {
-        code: building.code,
-        name: name.trim(),
-        description,
-        displayOrder,
-        isActive: building.isActive,
-      });
+      if (editingBuilding) {
+        await updateBuilding(editingBuilding.id, {
+          code: editingBuilding.code,
+          name: values.name,
+          description: values.description,
+          displayOrder: values.displayOrder,
+          isActive: editingBuilding.isActive,
+        });
+      } else {
+        await createBuilding({ ...values, isActive: true });
+      }
+      setIsFormModalOpen(false);
       await loadBuildings();
     } catch (err: unknown) {
-      alert(err instanceof Error ? err.message : "Không thể cập nhật tòa nhà.");
+      throw err; // re-throw so modal shows error
     } finally {
       setIsProcessing(false);
     }
@@ -114,7 +102,7 @@ export default function Buildings() {
           </p>
         </div>
         <button
-          onClick={handleCreate}
+          onClick={openCreate}
           disabled={isProcessing}
           className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all disabled:opacity-50"
         >
@@ -164,7 +152,7 @@ export default function Buildings() {
                     <td className="px-4 py-3">
                       <div className="flex items-center justify-center gap-1">
                         <button
-                          onClick={() => handleEdit(building)}
+                          onClick={() => openEdit(building)}
                           className="p-1.5 rounded-lg hover:bg-surface-container-high text-on-surface-variant hover:text-primary transition-colors"
                           title="Sửa"
                         >
@@ -203,6 +191,14 @@ export default function Buildings() {
         isProcessing={isProcessing}
         onClose={() => !isProcessing && setBuildingToToggle(null)}
         onConfirm={handleConfirmToggle}
+      />
+
+      <BuildingFormModal
+        open={isFormModalOpen}
+        initial={editingBuilding ?? undefined}
+        isSubmitting={isProcessing}
+        onClose={() => !isProcessing && setIsFormModalOpen(false)}
+        onSubmit={handleFormSubmit}
       />
     </div>
   );

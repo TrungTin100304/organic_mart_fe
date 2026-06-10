@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { motion } from "motion/react";
 import { Edit2, Leaf, Plus, Trash2 } from "lucide-react";
 import AdminConfirmModal from "../components/AdminConfirmModal";
+import FarmFormModal, { type FarmFormValues } from "../components/FarmFormModal";
 import { createFarm, deleteFarm, getFarms, updateFarm, type Farm } from "../../services/farmService";
 import { ADMIN_FARMS } from "../mocks/farms";
 import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
@@ -13,7 +14,9 @@ export default function Farms() {
   const [dataSource, setDataSource] = useState<AdminDataSource>("api");
   const [dataNotice, setDataNotice] = useState("");
   const [farmToDelete, setFarmToDelete] = useState<Farm | null>(null);
-  const [isDeleteProcessing, setIsDeleteProcessing] = useState(false);
+  const [editingFarm, setEditingFarm] = useState<Farm | null>(null);
+  const [isFormModalOpen, setIsFormModalOpen] = useState(false);
+  const [isProcessing, setIsProcessing] = useState(false);
 
   const loadFarms = async () => {
     setIsLoading(true);
@@ -31,64 +34,64 @@ export default function Farms() {
     }
   };
 
-  useEffect(() => {
-    void loadFarms();
-  }, []);
+  useEffect(() => { void loadFarms(); }, []);
 
-  const handleCreate = async () => {
-    const name = window.prompt("Tên nông trại");
-    if (!name?.trim()) return;
-    const location = window.prompt("Địa điểm") || "";
-    if (dataSource === "mock") {
-      setFarms((current) => [
-        {
-          id: Date.now(),
-          name: name.trim(),
-          location,
-          certification: "",
-          contactPhone: "",
-          contactEmail: "",
-          createdAt: new Date().toISOString(),
-        },
-        ...current,
-      ]);
-      return;
-    }
-
-    try {
-      await createFarm({ name: name.trim(), location, certification: "", contactPhone: "", contactEmail: "" });
-      await loadFarms();
-    } catch (err: any) {
-      alert(err?.message || "Không thể tạo nông trại.");
-    }
+  const openCreate = () => {
+    setEditingFarm(null);
+    setIsFormModalOpen(true);
   };
 
-  const handleEdit = async (farm: Farm) => {
-    const name = window.prompt("Tên nông trại", farm.name);
-    if (!name?.trim()) return;
-    const location = window.prompt("Địa điểm", farm.location || "") || "";
-    const nextFarm = {
-      ...farm,
-      name: name.trim(),
-      location,
-    };
+  const openEdit = (farm: Farm) => {
+    setEditingFarm(farm);
+    setIsFormModalOpen(true);
+  };
 
-    if (dataSource === "mock") {
-      setFarms((current) => current.map((item) => (item.id === farm.id ? nextFarm : item)));
-      return;
-    }
-
+  const handleFormSubmit = async (values: FarmFormValues) => {
+    setIsProcessing(true);
     try {
-      await updateFarm(farm.id, {
-        name: name.trim(),
-        location,
-        certification: farm.certification || "",
-        contactPhone: farm.contactPhone || "",
-        contactEmail: farm.contactEmail || "",
-      });
+      if (editingFarm) {
+        if (dataSource === "mock") {
+          setFarms((current) => current.map((item) =>
+            item.id === editingFarm.id ? { ...item, ...values } : item
+          ));
+          setIsFormModalOpen(false);
+          return;
+        }
+        await updateFarm(editingFarm.id, {
+          name: values.name,
+          location: values.location,
+          certification: values.certification,
+          contactPhone: values.contactPhone,
+          contactEmail: values.contactEmail,
+        });
+      } else {
+        if (dataSource === "mock") {
+          setFarms((current) => [{
+            id: Date.now(),
+            name: values.name,
+            location: values.location,
+            certification: values.certification,
+            contactPhone: values.contactPhone,
+            contactEmail: values.contactEmail,
+            createdAt: new Date().toISOString(),
+          }, ...current]);
+          setIsFormModalOpen(false);
+          return;
+        }
+        await createFarm({
+          name: values.name,
+          location: values.location,
+          certification: values.certification,
+          contactPhone: values.contactPhone,
+          contactEmail: values.contactEmail,
+        });
+      }
+      setIsFormModalOpen(false);
       await loadFarms();
-    } catch (err: any) {
-      alert(err?.message || "Không thể cập nhật nông trại.");
+    } catch (err: unknown) {
+      throw err;
+    } finally {
+      setIsProcessing(false);
     }
   };
 
@@ -103,16 +106,15 @@ export default function Farms() {
       setFarmToDelete(null);
       return;
     }
-
-    setIsDeleteProcessing(true);
+    setIsProcessing(true);
     try {
       await deleteFarm(farmToDelete.id);
       await loadFarms();
       setFarmToDelete(null);
-    } catch (err: any) {
-      alert(err?.message || "Không thể xóa nông trại.");
+    } catch (err: unknown) {
+      alert(err instanceof Error ? err.message : "Không thể xóa nông trại.");
     } finally {
-      setIsDeleteProcessing(false);
+      setIsProcessing(false);
     }
   };
 
@@ -123,7 +125,7 @@ export default function Farms() {
           <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Nông trại</h1>
           <p className="text-sm text-on-surface-variant mt-0.5">{farms.length} nông trại {sourceLabel(dataSource)}</p>
         </div>
-        <button onClick={handleCreate} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all">
+        <button onClick={openCreate} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all">
           <Plus className="w-4 h-4" /> Thêm nông trại
         </button>
       </motion.div>
@@ -152,7 +154,7 @@ export default function Farms() {
                   {farm.certification && <p className="text-xs text-primary font-bold mt-2">{farm.certification}</p>}
                 </div>
                 <div className="flex gap-1">
-                  <button onClick={() => handleEdit(farm)} className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-primary transition-colors">
+                  <button onClick={() => openEdit(farm)} className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant hover:text-primary transition-colors">
                     <Edit2 className="w-4 h-4" />
                   </button>
                   <button onClick={() => handleDelete(farm)} className="p-1.5 rounded-lg hover:bg-red-50 text-on-surface-variant hover:text-red-600 transition-colors">
@@ -164,16 +166,25 @@ export default function Farms() {
           ))}
         </div>
       )}
+
       <AdminConfirmModal
         open={Boolean(farmToDelete)}
         title="Xóa nông trại"
         message={`Xóa nông trại "${farmToDelete?.name || ""}"?`}
         confirmLabel="Xóa"
-        isProcessing={isDeleteProcessing}
+        isProcessing={isProcessing}
         onClose={() => {
-          if (!isDeleteProcessing) setFarmToDelete(null);
+          if (!isProcessing) setFarmToDelete(null);
         }}
         onConfirm={handleConfirmDelete}
+      />
+
+      <FarmFormModal
+        open={isFormModalOpen}
+        initial={editingFarm ?? undefined}
+        isSubmitting={isProcessing}
+        onClose={() => !isProcessing && setIsFormModalOpen(false)}
+        onSubmit={handleFormSubmit}
       />
     </div>
   );
