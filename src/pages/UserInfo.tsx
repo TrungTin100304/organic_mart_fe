@@ -8,7 +8,7 @@ import * as allergenService from '@/services/allergenService';
 import { getMyOrders, getOrderDetail, type UserOrderSummary } from '@/services/orderService';
 import type { Address, Allergen } from '@/types/user';
 import type { DietType as MealDietType } from '@/types/mealPlan';
-import { Scale, Target, Heart, X } from 'lucide-react';
+import { X } from 'lucide-react';
 
 type OrderStatus = 'Tất cả' | 'Chờ xác nhận' | 'Đã xác nhận' | 'Đang xử lý' | 'Đã giao hàng' | 'Đã hủy' | 'Đã hoàn tiền';
 
@@ -24,6 +24,7 @@ interface Toast {
 
 const TABS = [
   { key: 'profile' as const, label: 'Thông tin cá nhân', icon: 'person' },
+  { key: 'health' as const, label: 'Hồ sơ sức khỏe', icon: 'monitor_heart' },
   { key: 'orders' as const, label: 'Lịch sử mua hàng', icon: 'history' },
   { key: 'addresses' as const, label: 'Sổ địa chỉ', icon: 'location_on' },
   { key: 'settings' as const, label: 'Cài đặt', icon: 'settings' },
@@ -144,6 +145,18 @@ const UserInfoPage: React.FC = () => {
     }
   }, [activeTab, user]);
 
+  useEffect(() => {
+    if (user && activeTab === 'health') {
+      setMetricsForm({
+        heightCm: user.heightCm ? String(user.heightCm) : '',
+        weightKg: user.weightKg ? String(user.weightKg) : '',
+        healthGoal: user.healthGoal || '',
+        dietType: (user.dietType as MealDietType) || '',
+        dailyCalorieTarget: user.dailyCalorieTarget ? String(user.dailyCalorieTarget) : '',
+      });
+    }
+  }, [activeTab, user]);
+
   const loadAddresses = async () => {
     setIsAddressesLoading(true);
     try {
@@ -197,14 +210,12 @@ const UserInfoPage: React.FC = () => {
     showToast('Đã cập nhật tuỳ chọn chế độ ăn!', 'success');
   };
 
-  const handleAddAllergen = async (e: React.FormEvent) => {
+  const handleAddAllergen = async (e: React.FormEvent): Promise<Allergen | null> => {
     e.preventDefault();
-    if (!user) return;
-
     const trimmedName = newAllergenName.trim();
     if (!trimmedName) {
       showToast('Tên dị ứng không được để trống!', 'error');
-      return;
+      return null;
     }
 
     const isDuplicate = allergens.some(
@@ -212,22 +223,19 @@ const UserInfoPage: React.FC = () => {
     );
     if (isDuplicate) {
       showToast('Tên dị ứng này đã tồn tại!', 'error');
-      return;
+      return null;
     }
 
     setIsAddingAllergen(true);
     try {
       const newAllergen = await allergenService.createAllergen(trimmedName);
       setAllergens((prev) => [...prev, newAllergen]);
-
-      const updatedSelected = [...selectedAllergens, newAllergen.id];
-      setSelectedAllergens(updatedSelected);
-      localStorage.setItem(`user_allergens_${user.id}`, JSON.stringify(updatedSelected));
-
       setNewAllergenName('');
       showToast('Thêm dị ứng mới thành công!', 'success');
+      return newAllergen;
     } catch (err: any) {
       showToast(err.message || 'Không thể thêm dị ứng mới', 'error');
+      return null;
     } finally {
       setIsAddingAllergen(false);
     }
@@ -571,145 +579,6 @@ const UserInfoPage: React.FC = () => {
                 onUpdateSuccess={refetch}
                 onShowNotification={showToast}
               />
-
-              {/* Allergens Selection Section */}
-              <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
-                <div className="flex flex-col mb-6">
-                  <h3 className="font-headline-md text-headline-md text-primary mb-1">Dị ứng & Chế độ ăn</h3>
-                  <p className="text-on-surface-variant text-body-md">
-                    Chọn các chất gây dị ứng hoặc chế độ ăn của bạn để chúng tôi có thể đưa ra cảnh báo an toàn khi bạn mua sắm thực phẩm.
-                  </p>
-                </div>
-
-                {allergens.length > 0 ? (
-                  <div className="flex flex-wrap gap-3 mb-6">
-                    {allergens.map((allergen) => {
-                      const isSelected = selectedAllergens.includes(allergen.id);
-                      return (
-                        <button
-                          key={allergen.id}
-                          onClick={() => handleToggleAllergen(allergen.id)}
-                          className={`flex items-center gap-2 px-4 py-2 rounded-full border text-body-md font-semibold transition-all duration-200 cursor-pointer active:scale-95 ${
-                            isSelected
-                              ? 'bg-primary text-white border-primary shadow-sm'
-                              : 'bg-surface-container-low text-on-surface-variant border-outline-variant hover:bg-surface-container-high'
-                          }`}
-                        >
-                          <span className="material-symbols-outlined text-[16px]">
-                            {isSelected ? 'check_circle' : 'add_circle'}
-                          </span>
-                          {allergen.name}
-                        </button>
-                      );
-                    })}
-                  </div>
-                ) : (
-                  <p className="text-on-surface-variant text-body-md mb-6">Đang tải tuỳ chọn chế độ ăn...</p>
-                )}
-
-                {/* Add custom allergen input field */}
-                <div className="border-t border-outline-variant/30 pt-6 mt-6">
-                  <form onSubmit={handleAddAllergen} className="max-w-md">
-                    <label htmlFor="newAllergenInput" className="block text-label-lg font-bold text-on-surface-variant mb-2">
-                      Nhập tên dị ứng hoặc chế độ ăn mới
-                    </label>
-                    <div className="flex gap-2">
-                      <input
-                        id="newAllergenInput"
-                        type="text"
-                        value={newAllergenName}
-                        onChange={(e) => setNewAllergenName(e.target.value)}
-                        placeholder="VD: Không ăn tinh bột, Dị ứng kiwi..."
-                        className="flex-1 px-4 py-2 border border-outline-variant rounded-xl bg-surface-container-low focus:outline-none focus:border-primary font-body-md"
-                        disabled={isAddingAllergen}
-                      />
-                      <button
-                        type="submit"
-                        disabled={isAddingAllergen}
-                        className="px-5 py-2 bg-primary text-white rounded-xl font-bold hover:bg-primary/95 transition-all active:scale-95 disabled:opacity-50 cursor-pointer flex items-center gap-1.5 shadow-sm whitespace-nowrap"
-                      >
-                        {isAddingAllergen ? (
-                          <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
-                        ) : (
-                          <span className="material-symbols-outlined text-[20px]">add</span>
-                        )}
-                        Thêm mới
-                      </button>
-                    </div>
-                  </form>
-                </div>
-              </section>
-
-              {/* Health Metrics Section */}
-              <section className="bg-surface-container-lowest rounded-2xl shadow-sm border border-outline-variant p-6 md:p-10">
-                <div className="flex flex-col mb-6">
-                  <h3 className="font-headline-md text-headline-md text-primary mb-1">Chỉ số sức khỏe</h3>
-                  <p className="text-on-surface-variant text-body-md">
-                    Cập nhật chiều cao, cân nặng và mục tiêu calo hàng ngày để nhận thực đơn phù hợp với cơ thể bạn.
-                  </p>
-                </div>
-
-                {user.heightCm && user.weightKg && user.bmi ? (
-                  <div className="grid grid-cols-2 sm:grid-cols-4 gap-4 mb-6">
-                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
-                      <div className="flex items-center justify-center gap-2 mb-1">
-                        <Scale className="w-4 h-4 text-on-surface-variant" />
-                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Chiều cao</span>
-                      </div>
-                      <p className="text-xl font-bold text-on-surface">{user.heightCm}</p>
-                      <p className="text-xs text-on-surface-variant">cm</p>
-                    </div>
-                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
-                      <div className="flex items-center justify-center gap-2 mb-1">
-                        <Scale className="w-4 h-4 text-on-surface-variant" />
-                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Cân nặng</span>
-                      </div>
-                      <p className="text-xl font-bold text-on-surface">{user.weightKg}</p>
-                      <p className="text-xs text-on-surface-variant">kg</p>
-                    </div>
-                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
-                      <div className="flex items-center justify-center gap-2 mb-1">
-                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">BMI</span>
-                      </div>
-                      <p className={`text-xl font-bold ${user.bmi < 18.5 || user.bmi >= 25 ? 'text-red-500' : user.bmi >= 23 ? 'text-amber-500' : 'text-green-600'}`}>
-                        {user.bmi}
-                      </p>
-                      <p className="text-xs text-on-surface-variant">
-                        {user.bmi < 18.5 ? 'Thiếu cân' : user.bmi < 23 ? 'Bình thường' : user.bmi < 25 ? 'Thừa cân' : 'Béo phì'}
-                      </p>
-                    </div>
-                    <div className="bg-surface-container-low rounded-xl p-4 text-center">
-                      <div className="flex items-center justify-center gap-2 mb-1">
-                        <Target className="w-4 h-4 text-on-surface-variant" />
-                        <span className="text-xs font-bold text-on-surface-variant uppercase tracking-wide">Calo/ngày</span>
-                      </div>
-                      <p className="text-xl font-bold text-on-surface">{user.dailyCalorieTarget ?? '—'}</p>
-                      <p className="text-xs text-on-surface-variant">kcal</p>
-                    </div>
-                  </div>
-                ) : (
-                  <p className="text-on-surface-variant text-body-md mb-4">
-                    Bạn chưa nhập chỉ số sức khỏe. Cập nhật ngay để nhận thực đơn tốt nhất!
-                  </p>
-                )}
-
-                <button
-                  onClick={() => {
-                    setMetricsForm({
-                      heightCm: user.heightCm ? String(user.heightCm) : '',
-                      weightKg: user.weightKg ? String(user.weightKg) : '',
-                      healthGoal: user.healthGoal || '',
-                      dietType: (user.dietType as MealDietType) || '',
-                      dailyCalorieTarget: user.dailyCalorieTarget ? String(user.dailyCalorieTarget) : '',
-                    });
-                    setIsMetricsModalOpen(true);
-                  }}
-                  className="px-6 py-2.5 bg-primary text-white rounded-xl font-bold hover:bg-primary/95 transition-all active:scale-95 shadow-sm flex items-center gap-2"
-                >
-                  <Heart className="w-4 h-4" />
-                  {user.heightCm ? 'Cập nhật chỉ số' : 'Nhập chỉ số sức khỏe'}
-                </button>
-              </section>
             </div>
           )}
 
@@ -985,6 +854,319 @@ const UserInfoPage: React.FC = () => {
                   </>
                 )}
               </section>
+            </div>
+          )}
+
+          {activeTab === 'health' && (
+            <div className="space-y-6">
+              {/* Page header */}
+              <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+                <div>
+                  <h2 className="font-headline-lg text-headline-lg text-on-surface">Hồ sơ sức khỏe người dùng</h2>
+                  <p className="text-body-lg text-on-surface-variant mt-1">Cập nhật chỉ số cơ thể để nhận gợi ý thực phẩm tốt nhất</p>
+                </div>
+              </div>
+
+              {/* Quick Stats + Promotion Bento Grid */}
+              <div className="grid grid-cols-12 gap-4">
+                {/* BMI Card */}
+                <div className="col-span-12 sm:col-span-4 bg-surface-container-lowest p-5 rounded-xl border border-outline-variant shadow-sm flex flex-col items-center text-center">
+                  <span className="text-primary material-symbols-outlined text-[28px] mb-2">speed</span>
+                  <p className="text-label-lg text-on-surface-variant uppercase tracking-wide mb-1">BMI Hiện Tại</p>
+                  <h3 className="font-headline-lg text-headline-lg text-on-surface">
+                    {user.bmi ? user.bmi.toFixed(1) : '—'}
+                  </h3>
+                  <p className="text-body-md text-secondary font-bold mt-0.5">
+                    {(() => {
+                      if (!user.bmi) return 'Chưa có dữ liệu';
+                      if (user.bmi < 18.5) return 'Thiếu cân';
+                      if (user.bmi < 25) return 'Bình thường';
+                      if (user.bmi < 30) return 'Thừa cân';
+                      return 'Béo phì';
+                    })()}
+                  </p>
+                </div>
+
+                {/* Calorie Card */}
+                <div className="col-span-12 sm:col-span-4 bg-surface-container-lowest p-5 rounded-xl border border-outline-variant shadow-sm flex flex-col items-center text-center">
+                  <span className="text-primary material-symbols-outlined text-[28px] mb-2">local_fire_department</span>
+                  <p className="text-label-lg text-on-surface-variant uppercase tracking-wide mb-1">Calo/Ngày</p>
+                  <h3 className="font-headline-lg text-headline-lg text-on-surface">
+                    {user.dailyCalorieTarget ? user.dailyCalorieTarget.toLocaleString() : '—'}
+                  </h3>
+                  <p className="text-body-md text-on-surface-variant mt-0.5">Mục tiêu: {user.dailyCalorieTarget ? user.dailyCalorieTarget.toLocaleString() : '—'}</p>
+                </div>
+
+                {/* Progress Card */}
+                <div className="col-span-12 sm:col-span-4 bg-surface-container-lowest p-5 rounded-xl border border-outline-variant shadow-sm flex flex-col items-center text-center">
+                  <span className="text-primary material-symbols-outlined text-[28px] mb-2">trending_up</span>
+                  <p className="text-label-lg text-on-surface-variant uppercase tracking-wide mb-1">Tiến Độ</p>
+                  <h3 className="font-headline-lg text-headline-lg text-on-surface">{(() => {
+                    if (!user.heightCm || !user.weightKg) return '—';
+                    const bmi = user.weightKg / ((user.heightCm / 100) ** 2);
+                    const normalWeight = 25 * (user.heightCm / 100) ** 2;
+                    const currentWeight = user.weightKg;
+                    const startWeight = normalWeight * 1.15;
+                    if (currentWeight >= startWeight) return '100%';
+                    const progress = Math.min(100, Math.max(0, Math.round(((startWeight - currentWeight) / (startWeight - normalWeight)) * 100)));
+                    return `${progress}%`;
+                  })()}</h3>
+                  {user.heightCm && user.weightKg && (
+                    <div className="w-full bg-surface-variant h-2 rounded-full mt-2">
+                      <div className="bg-primary h-full rounded-full" style={{ width: `${(() => {
+                        if (!user.heightCm || !user.weightKg) return 0;
+                        const bmi = user.weightKg / ((user.heightCm / 100) ** 2);
+                        const normalWeight = 25 * (user.heightCm / 100) ** 2;
+                        const currentWeight = user.weightKg;
+                        const startWeight = normalWeight * 1.15;
+                        if (currentWeight >= startWeight) return 100;
+                        return Math.min(100, Math.max(0, Math.round(((startWeight - currentWeight) / (startWeight - normalWeight)) * 100)));
+                      })()}%` }} />
+                    </div>
+                  )}
+                </div>
+
+       
+              </div>
+
+              {/* Health Form Section */}
+              <section className="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 md:p-8 shadow-sm">
+                <div className="flex items-center gap-2 mb-6">
+                  <span className="material-symbols-outlined text-primary">edit_note</span>
+                  <h3 className="font-headline-md text-headline-md text-on-surface">Thông tin chi tiết</h3>
+                </div>
+                <form onSubmit={handleMetricsSubmit} className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                  {/* Column 1 */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-label-lg font-bold text-on-surface-variant mb-1.5">Chiều cao (cm)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="300"
+                        value={metricsForm.heightCm}
+                        onChange={(e) => setMetricsForm({ ...metricsForm, heightCm: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-surface border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all text-body-lg"
+                        placeholder="Ví dụ: 175"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-label-lg font-bold text-on-surface-variant mb-1.5">Cân nặng (kg)</label>
+                      <input
+                        type="number"
+                        min="1"
+                        max="500"
+                        step="0.1"
+                        value={metricsForm.weightKg}
+                        onChange={(e) => setMetricsForm({ ...metricsForm, weightKg: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-surface border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all text-body-lg"
+                        placeholder="Ví dụ: 68"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-label-lg font-bold text-on-surface-variant mb-1.5">Mục tiêu sức khỏe</label>
+                      <select
+                        value={metricsForm.healthGoal}
+                        onChange={(e) => setMetricsForm({ ...metricsForm, healthGoal: e.target.value })}
+                        className="w-full px-4 py-3 rounded-xl bg-surface border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all text-body-lg"
+                      >
+                        <option value="">Chọn mục tiêu...</option>
+                        <option value="LIVING_HEALTHY">Sống khỏe mỗi ngày</option>
+                        <option value="WEIGHT_LOSS">Giảm cân</option>
+                        <option value="MUSCLE_GAIN">Tăng cơ</option>
+                        <option value="WEIGHT_MAINTENANCE">Duy trì cân nặng</option>
+                      </select>
+                    </div>
+                    <div>
+                      <label className="block text-label-lg font-bold text-on-surface-variant mb-1.5">Dị ứng</label>
+                      {selectedAllergens.length > 0 ? (
+                        <div className="flex flex-wrap gap-2 mb-3">
+                          {selectedAllergens.map((id) => {
+                            const allergen = allergens.find((a) => a.id === id);
+                            if (!allergen) return null;
+                            return (
+                              <span
+                                key={id}
+                                className="inline-flex items-center gap-1.5 pl-3 pr-1.5 py-1.5 rounded-full bg-primary text-white text-body-md font-semibold"
+                              >
+                                {allergen.name}
+                                <button
+                                  type="button"
+                                  onClick={() => handleToggleAllergen(id)}
+                                  className="w-4 h-4 rounded-full bg-white/30 hover:bg-white/50 flex items-center justify-center transition-colors cursor-pointer"
+                                >
+                                  <span className="text-[10px] leading-none font-bold">×</span>
+                                </button>
+                              </span>
+                            );
+                          })}
+                        </div>
+                      ) : (
+                        <p className="text-body-md text-on-surface-variant mb-3">Chưa có dị ứng nào được chọn.</p>
+                      )}
+                      <div className="flex gap-2">
+                        <input
+                          type="text"
+                          value={newAllergenName}
+                          onChange={(e) => setNewAllergenName(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === 'Enter') {
+                              e.preventDefault();
+                              void handleAddAllergen(e as any).then((newAllergen) => {
+                                if (newAllergen && user) {
+                                  const updated = [...selectedAllergens, newAllergen.id];
+                                  setSelectedAllergens(updated);
+                                  localStorage.setItem(`user_allergens_${user.id}`, JSON.stringify(updated));
+                                }
+                              });
+                            }
+                          }}
+                          placeholder="Nhập tên dị ứng..."
+                          className="flex-1 px-4 py-2.5 rounded-xl bg-surface border border-outline-variant focus:border-primary focus:ring-1 focus:ring-primary/20 outline-none transition-all text-body-lg"
+                        />
+                        <button
+                          type="button"
+                          disabled={isAddingAllergen || !newAllergenName.trim()}
+                          onClick={(e) => {
+                            void handleAddAllergen(e as any).then((newAllergen) => {
+                              if (newAllergen && user) {
+                                const updated = [...selectedAllergens, newAllergen.id];
+                                setSelectedAllergens(updated);
+                                localStorage.setItem(`user_allergens_${user.id}`, JSON.stringify(updated));
+                              }
+                            });
+                          }}
+                          className="shrink-0 px-5 py-2.5 bg-primary text-white rounded-xl text-body-md font-bold hover:brightness-110 transition-all disabled:opacity-40 cursor-pointer"
+                        >
+                          Thêm
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Column 2 */}
+                  <div className="space-y-4">
+                    <div>
+                      <label className="block text-label-lg font-bold text-on-surface-variant mb-2">Chế độ ăn uống</label>
+                      <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                        {([
+                          { value: 'NORMAL', label: 'Bình thường' },
+                          { value: 'VEGETARIAN', label: 'Ăn chay' },
+                          { value: 'VEGAN', label: 'Thuần chay' },
+                          { value: 'KETO', label: 'Keto / Low-carb' },
+                          { value: 'PALEO', label: 'Paleo' },
+                          { value: 'GLUTEN_FREE', label: 'Không Gluten' },
+                        ] as const).map((option) => (
+                          <label
+                            key={option.value}
+                            className={`cursor-pointer border rounded-xl p-3 flex items-center gap-2 transition-colors has-[:checked]:border-primary has-[:checked]:bg-surface-container-high ${
+                              metricsForm.dietType === option.value
+                                ? 'border-primary bg-surface-container-high'
+                                : 'border-outline-variant hover:bg-surface-container-low'
+                            }`}
+                          >
+                            <input
+                              type="radio"
+                              name="dietType"
+                              value={option.value}
+                              checked={metricsForm.dietType === option.value}
+                              onChange={(e) => setMetricsForm({ ...metricsForm, dietType: e.target.value as any })}
+                              className="accent-primary"
+                            />
+                            <span className="text-body-md">{option.label}</span>
+                          </label>
+                        ))}
+                      </div>
+                    </div>
+
+                    <div>
+                      <label className="block text-label-lg font-bold text-on-surface-variant mb-2">Mục tiêu Calo hàng ngày</label>
+                      <input
+                        type="range"
+                        min="1200"
+                        max="4000"
+                        step="50"
+                        value={metricsForm.dailyCalorieTarget || 2000}
+                        onChange={(e) => setMetricsForm({ ...metricsForm, dailyCalorieTarget: e.target.value })}
+                        className="w-full h-2 rounded-lg appearance-none cursor-pointer"
+                        style={{
+                          background: `linear-gradient(to right, #486800 0%, #486800 ${
+                            ((Number(metricsForm.dailyCalorieTarget) || 2000) - 1200) / (4000 - 1200) * 100
+                          }%, #e7ead4 ${
+                            ((Number(metricsForm.dailyCalorieTarget) || 2000) - 1200) / (4000 - 1200) * 100
+                          }%, #e7ead4 100%)`,
+                        }}
+                      />
+                      <div className="flex justify-between text-label-lg text-on-surface-variant mt-2">
+                        <span>1200 kcal</span>
+                        <span className="text-primary font-bold">{metricsForm.dailyCalorieTarget || 2000} kcal</span>
+                        <span>4000 kcal</span>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Form Actions */}
+                  <div className="col-span-1 md:col-span-2 flex justify-end gap-3 pt-4 border-t border-outline-variant">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        setMetricsForm({
+                          heightCm: user.heightCm ? String(user.heightCm) : '',
+                          weightKg: user.weightKg ? String(user.weightKg) : '',
+                          healthGoal: user.healthGoal || '',
+                          dietType: (user.dietType as any) || '',
+                          dailyCalorieTarget: user.dailyCalorieTarget ? String(user.dailyCalorieTarget) : '',
+                        });
+                      }}
+                      className="px-8 py-3 rounded-xl text-primary font-bold hover:bg-surface-container-high transition-colors text-label-lg"
+                    >
+                      Hủy bỏ
+                    </button>
+                    <button
+                      type="submit"
+                      disabled={isMetricsSubmitting}
+                      className="px-10 py-3 bg-primary text-white font-bold rounded-xl shadow-md hover:brightness-110 transition-all active:scale-95 disabled:opacity-50 text-label-lg flex items-center gap-2"
+                    >
+                      {isMetricsSubmitting && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin" />}
+                      Lưu thay đổi
+                    </button>
+                  </div>
+                </form>
+              </section>
+
+              {/* Allergens Selection Section */}
+              
+
+              {/* Health History Chart */}
+              <section className="bg-surface-container-lowest rounded-xl border border-outline-variant p-6 md:p-8 shadow-sm">
+                <div className="flex justify-between items-center mb-6">
+                  <h3 className="font-headline-md text-headline-md text-on-surface">Lịch sử cân nặng</h3>
+                  <div className="flex gap-2">
+                    <button className="text-label-lg px-3 py-1 bg-surface-variant rounded-full text-on-surface-variant hover:bg-surface-container-high transition-colors">7 ngày</button>
+                    <button className="text-label-lg px-3 py-1 bg-primary text-white rounded-full">30 ngày</button>
+                  </div>
+                </div>
+                {/* Simulated Bar Chart */}
+                <div className="h-52 w-full flex items-end justify-between gap-3 px-2">
+                  {[
+                    { label: 'Tuần 1', height: 70 },
+                    { label: 'Tuần 2', height: 65 },
+                    { label: 'Tuần 3', height: 60 },
+                    { label: 'Tuần 4', height: 58 },
+                  ].map((item) => (
+                    <div key={item.label} className="flex-1 flex flex-col items-center gap-2">
+                      <div
+                        className="w-full bg-secondary-container rounded-t-lg transition-all hover:bg-primary-container cursor-pointer"
+                        style={{ height: `${item.height}%` }}
+                        title={`${item.label}: ${Math.round(75 - item.height * 0.25 + 65)}kg`}
+                      />
+                      <span className="text-label-lg text-on-surface-variant">{item.label}</span>
+                    </div>
+                  ))}
+                </div>
+              </section>
+
+             
             </div>
           )}
 
