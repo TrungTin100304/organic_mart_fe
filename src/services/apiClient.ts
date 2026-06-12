@@ -13,23 +13,33 @@ export interface ApiRequestOptions extends RequestInit {
 
 const DEFAULT_API_BASE_URL = "https://organic-mart-be-1.onrender.com/api/v1";
 
-const getConfiguredBaseUrl = () => {
-  const viteEnv = (import.meta as ImportMeta & { env?: Record<string, any> }).env;
-  const proxyTarget = viteEnv?.VITE_API_PROXY_TARGET;
-  const baseUrl = viteEnv?.VITE_API_BASE_URL;
+export const resolveApiBaseUrl = ({
+  baseUrl,
+  isDev = false,
+}: {
+  baseUrl?: string;
+  isDev?: boolean;
+}) => {
+  const configuredBaseUrl = baseUrl?.trim();
 
-  // Dev mode with proxy: VITE_API_PROXY_TARGET is the backend server
-  if (proxyTarget && typeof proxyTarget === "string" && proxyTarget.trim().length > 0) {
-    const cleaned = proxyTarget.replace(/\/+$/, "");
-    return baseUrl && typeof baseUrl === "string" ? `${cleaned}${baseUrl}` : `${cleaned}/api/v1`;
+  if (configuredBaseUrl?.startsWith("http")) {
+    return configuredBaseUrl.replace(/\/+$/, "");
   }
 
-  // Production or no proxy: use baseUrl if it's an absolute URL, otherwise use default
-  if (baseUrl && typeof baseUrl === "string" && baseUrl.startsWith("http")) {
-    return baseUrl.replace(/\/+$/, "");
+  if (isDev && configuredBaseUrl?.startsWith("/")) {
+    return configuredBaseUrl.replace(/\/+$/, "");
   }
 
   return DEFAULT_API_BASE_URL;
+};
+
+const getConfiguredBaseUrl = () => {
+  const viteEnv = (import.meta as ImportMeta & { env?: Record<string, any> }).env;
+
+  return resolveApiBaseUrl({
+    baseUrl: typeof viteEnv?.VITE_API_BASE_URL === "string" ? viteEnv.VITE_API_BASE_URL : undefined,
+    isDev: Boolean(viteEnv?.DEV),
+  });
 };
 
 export const getApiBaseUrl = (value = getConfiguredBaseUrl()) => value.replace(/\/+$/, "");
@@ -76,6 +86,20 @@ const joinUrl = (baseUrl: string, endpoint: string) => {
   const cleanBase = baseUrl.replace(/\/+$/, "");
   const cleanEndpoint = endpoint.startsWith("/") ? endpoint : `/${endpoint}`;
   return `${cleanBase}${cleanEndpoint}`;
+};
+
+const getInfrastructureErrorMessage = (status: number, text: string) => {
+  const normalizedText = text.toLowerCase();
+
+  if (status === 503 && normalizedText.includes("service has been suspended")) {
+    return "Backend Render đang bị tạm ngưng. Hãy resume hoặc redeploy service trên Render.";
+  }
+
+  if (status === 503) {
+    return "Backend hiện không khả dụng (503). Vui lòng kiểm tra trạng thái service trên Render.";
+  }
+
+  return null;
 };
 
 export const normalizeRole = (role?: string | null): Role => {
@@ -126,7 +150,12 @@ export async function apiRequest<T>(
   let payload: any = null;
   if (text) {
     const trimmed = String(text).trim();
-    if (trimmed && trimmed !== "undefined" && trimmed !== "null") {
+    const contentType = response.headers.get("Content-Type") || "";
+    const looksLikeJson = contentType.includes("application/json")
+      || trimmed.startsWith("{")
+      || trimmed.startsWith("[");
+
+    if (looksLikeJson && trimmed && trimmed !== "undefined" && trimmed !== "null") {
       try {
         payload = JSON.parse(trimmed);
       } catch (e) {
@@ -150,7 +179,11 @@ export async function apiRequest<T>(
       clearAuthStorage();
     }
 
-    const message = payload?.message || payload?.error || payload || `API request failed (${response.status})`;
+    const message = payload?.message
+      || payload?.error
+      || payload
+      || getInfrastructureErrorMessage(response.status, text)
+      || `API request failed (${response.status})`;
     if (typeof window !== "undefined") {
       // eslint-disable-next-line no-console
       console.error(`[apiClient] ${response.status} ${endpoint}`, { payload, raw: text });
