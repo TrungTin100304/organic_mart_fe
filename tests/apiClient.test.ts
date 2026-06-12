@@ -1,7 +1,25 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 
-import { apiRequest, getApiBaseUrl, normalizeRole } from "../src/services/apiClient.ts";
+import { apiRequest, getApiBaseUrl, normalizeRole, resolveApiBaseUrl } from "../src/services/apiClient.ts";
+
+test("resolveApiBaseUrl keeps the relative API path in development so Vite can proxy it", () => {
+  assert.equal(resolveApiBaseUrl({ baseUrl: "/api/v1", isDev: true }), "/api/v1");
+});
+
+test("resolveApiBaseUrl does not use a relative API path in production", () => {
+  assert.equal(
+    resolveApiBaseUrl({ baseUrl: "/api/v1", isDev: false }),
+    "https://organic-mart-be-1.onrender.com/api/v1",
+  );
+});
+
+test("resolveApiBaseUrl accepts an explicit absolute API URL", () => {
+  assert.equal(
+    resolveApiBaseUrl({ baseUrl: "http://localhost:8080/api/v1/", isDev: false }),
+    "http://localhost:8080/api/v1",
+  );
+});
 
 test("getApiBaseUrl removes trailing slashes and keeps the api version path", () => {
   assert.equal(getApiBaseUrl("http://localhost:8080/api/v1/"), "http://localhost:8080/api/v1");
@@ -51,6 +69,28 @@ test("apiRequest unwraps ApiResponse.data and sends bearer token", async () => {
     } else {
       delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
     }
+  }
+});
+
+test("apiRequest reports a clear message when the Render backend is suspended", async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () =>
+    new Response(
+      "<!DOCTYPE html><html><body>This service has been suspended by its owner.</body></html>",
+      {
+        status: 503,
+        headers: { "Content-Type": "text/html; charset=utf-8" },
+      },
+    )) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => apiRequest("/auth/login", { method: "POST" }, "http://api.test/api/v1"),
+      /Backend Render đang bị tạm ngưng/,
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
   }
 });
 
