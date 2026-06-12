@@ -11,7 +11,7 @@ export interface ApiRequestOptions extends RequestInit {
   skipRefresh?: boolean;
 }
 
-const DEFAULT_API_BASE_URL = "https://organic-mart-be-1.onrender.com/api/v1";
+const DEFAULT_API_BASE_URL = "https://organic-mart-be.onrender.com/api/v1";
 
 export const resolveApiBaseUrl = ({
   baseUrl,
@@ -135,12 +135,26 @@ export async function apiRequest<T>(
     requestHeaders.Authorization = `Bearer ${token}`;
   }
 
-  const response = await fetch(joinUrl(baseUrl, endpoint), {
-    ...init,
-    body,
-    headers: requestHeaders,
-    credentials: "include",
-  });
+  let response: Response;
+  try {
+    response = await fetch(joinUrl(baseUrl, endpoint), {
+      ...init,
+      body,
+      headers: requestHeaders,
+      credentials: "include",
+    });
+  } catch (err) {
+    if (typeof window !== "undefined") {
+      const isCors = err instanceof TypeError && err.message.toLowerCase().includes("fetch");
+      const msg = isCors
+        ? "CORS error — kiểm tra backend CORS config hoặc backend có đang chạy không."
+        : `Network error: ${err instanceof Error ? err.message : String(err)}`;
+      // eslint-disable-next-line no-console
+      console.error(`[apiClient] NETWORK ERROR ${endpoint}`, err);
+      throw new Error(msg);
+    }
+    throw err;
+  }
 
   const text = await response.text();
   // Defensive JSON parse: some servers may return the literal string 'undefined' or
