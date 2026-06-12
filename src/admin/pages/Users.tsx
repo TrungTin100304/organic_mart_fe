@@ -9,6 +9,7 @@ import type { User } from "../../types/user";
 import { createUser, deleteUser, getUsers, updateUser, updateUserStatus } from "../../services/adminUserService";
 import { ADMIN_USERS } from "../mocks/users";
 import { loadAdminDataWithFallback, sourceLabel, type AdminDataSource } from "../utils/dataSource";
+import type { PageResponse } from "../../services/adminOrderService";
 
 const roleMap: Record<AdminUser["role"], { label: string; cls: string }> = {
   admin: { label: "Admin", cls: "bg-primary/10 text-primary border-primary/20" },
@@ -51,6 +52,8 @@ type UserConfirmAction =
   | { type: "delete"; user: AdminUser }
   | { type: "status"; user: AdminUser };
 
+const USERS_PER_PAGE = 20;
+
 export default function Users() {
   const [search, setSearch] = useState("");
   const [roleFilter, setRoleFilter] = useState<"all" | "customer">("all");
@@ -67,18 +70,42 @@ export default function Users() {
   const [error, setError] = useState("");
   const [dataSource, setDataSource] = useState<AdminDataSource>("api");
   const [dataNotice, setDataNotice] = useState("");
+  const [currentPage, setCurrentPage] = useState(0);
+  const [totalPages, setTotalPages] = useState(0);
+  const [totalElements, setTotalElements] = useState(0);
 
-  const loadUsers = async () => {
+  const loadUsers = async (page = currentPage) => {
     setIsLoading(true);
     setError("");
     setDataNotice("");
     try {
-      const result = await loadAdminDataWithFallback(
-        async () => (await getUsers()).map(toAdminUser),
-        () => ADMIN_USERS,
+      const result = await loadAdminDataWithFallback<PageResponse<AdminUser>>(
+        async () => {
+          const userPage = await getUsers({ page, size: USERS_PER_PAGE });
+          return {
+            ...userPage,
+            content: userPage.content.map(toAdminUser).filter((user) => user.role !== "admin"),
+          };
+        },
+        () => {
+          const start = page * USERS_PER_PAGE;
+          return {
+            content: ADMIN_USERS.slice(start, start + USERS_PER_PAGE),
+            totalElements: ADMIN_USERS.length,
+            totalPages: Math.ceil(ADMIN_USERS.length / USERS_PER_PAGE),
+            size: USERS_PER_PAGE,
+            number: page,
+          };
+        },
       );
-      const safeUsers = result.data.filter((user) => user.role !== "admin");
-      setUsers(safeUsers);
+      if (page > 0 && result.data.content.length === 0) {
+        setCurrentPage(page - 1);
+        return;
+      }
+      setUsers(result.data.content);
+      setCurrentPage(result.data.number);
+      setTotalPages(result.data.totalPages);
+      setTotalElements(result.data.totalElements);
       setDataSource(result.source);
       setDataNotice(result.error || (result.source === "mock" ? "Đang hiển thị dữ liệu mẫu." : ""));
     } catch (err: any) {
@@ -89,8 +116,8 @@ export default function Users() {
   };
 
   useEffect(() => {
-    void loadUsers();
-  }, []);
+    void loadUsers(currentPage);
+  }, [currentPage]);
 
   const filtered = useMemo(() => users.filter((user) => {
     if (user.role === "admin") return false;
@@ -143,7 +170,7 @@ export default function Users() {
       }
       setShowForm(false);
       setEditingUser(null);
-      await loadUsers();
+      await loadUsers(currentPage);
     } catch (err: any) {
       const message = err?.message || "Không thể lưu người dùng.";
       if (/403|forbidden/i.test(message)) {
@@ -188,7 +215,7 @@ export default function Users() {
     try {
       if (confirmAction.type === "delete") {
         await deleteUser(user.id);
-        await loadUsers();
+        await loadUsers(currentPage);
         setSelectedUser(null);
         setConfirmAction(null);
         return;
@@ -207,7 +234,7 @@ export default function Users() {
 
       setStatusUpdatingId(user.id);
       await updateUserStatus(user.id, nextIsActive);
-      await loadUsers();
+      await loadUsers(currentPage);
       setConfirmAction(null);
     } catch (err: any) {
       const fallbackMessage = confirmAction.type === "delete"
@@ -250,7 +277,7 @@ export default function Users() {
       <motion.div initial={{ opacity: 0, y: -10 }} animate={{ opacity: 1, y: 0 }} className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
         <div>
           <h1 className="text-xl lg:text-2xl font-bold text-on-surface">Người dùng</h1>
-          <p className="text-sm text-on-surface-variant mt-0.5">{users.length} người dùng {sourceLabel(dataSource)}</p>
+          <p className="text-sm text-on-surface-variant mt-0.5">{totalElements} người dùng {sourceLabel(dataSource)}</p>
         </div>
         <button onClick={handleOpenCreate} className="flex items-center gap-2 px-4 py-2.5 bg-primary text-white rounded-xl text-sm font-bold hover:brightness-110 transition-all self-start">
           <Plus className="w-4 h-4" /> Thêm người dùng
@@ -389,11 +416,27 @@ export default function Users() {
             </table>
           </div>
           <div className="flex items-center justify-between px-5 py-3 border-t border-outline-variant/20">
-            <span className="text-xs text-on-surface-variant">Hiển thị {filtered.length} / {users.length}</span>
+            <span className="text-xs text-on-surface-variant">
+              Hiển thị {filtered.length} / {totalElements}
+            </span>
             <div className="flex gap-1">
-              <button className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant"><ChevronLeft className="w-4 h-4" /></button>
-              <button className="w-8 h-8 rounded-lg bg-primary text-white text-xs font-bold">1</button>
-              <button className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant"><ChevronRight className="w-4 h-4" /></button>
+              <button
+                onClick={() => setCurrentPage((page) => Math.max(0, page - 1))}
+                disabled={currentPage === 0 || isLoading}
+                className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronLeft className="w-4 h-4" />
+              </button>
+              <span className="min-w-20 px-2 h-8 rounded-lg bg-primary text-white text-xs font-bold flex items-center justify-center">
+                Trang {totalPages ? currentPage + 1 : 0} / {totalPages}
+              </span>
+              <button
+                onClick={() => setCurrentPage((page) => Math.min(totalPages - 1, page + 1))}
+                disabled={currentPage + 1 >= totalPages || isLoading}
+                className="p-1.5 rounded-lg hover:bg-surface-container text-on-surface-variant disabled:opacity-30 disabled:cursor-not-allowed"
+              >
+                <ChevronRight className="w-4 h-4" />
+              </button>
             </div>
           </div>
         </div>

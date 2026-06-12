@@ -72,6 +72,8 @@ const UserInfoPage: React.FC = () => {
   // Order history state
   const [orderStatusFilter, setOrderStatusFilter] = useState<OrderStatus>('Tất cả');
   const [currentPage, setCurrentPage] = useState(1);
+  const [orderTotalPages, setOrderTotalPages] = useState(0);
+  const [orderTotalElements, setOrderTotalElements] = useState(0);
   const ORDERS_PER_PAGE = 5;
 
   // Health metrics / preference state
@@ -148,12 +150,6 @@ const UserInfoPage: React.FC = () => {
   }, [user]);
 
   useEffect(() => {
-    if (user && activeTab === 'orders') {
-      void loadOrders();
-    }
-  }, [activeTab, user]);
-
-  useEffect(() => {
     if (user && activeTab === 'health') {
       setMetricsForm({
         heightCm: user.heightCm ? String(user.heightCm) : '',
@@ -197,8 +193,12 @@ const UserInfoPage: React.FC = () => {
     try {
       const page = await getMyOrders({ page: currentPage - 1, size: ORDERS_PER_PAGE });
       setOrders(page.content);
+      setOrderTotalPages(page.totalPages);
+      setOrderTotalElements(page.totalElements);
     } catch (err: unknown) {
       setOrders([]);
+      setOrderTotalPages(0);
+      setOrderTotalElements(0);
       setOrdersError(err instanceof Error ? err.message : 'Không thể tải lịch sử mua hàng.');
     } finally {
       setIsOrdersLoading(false);
@@ -466,10 +466,10 @@ const UserInfoPage: React.FC = () => {
 
   // Load orders whenever filter or page changes on the orders tab
   useEffect(() => {
-    if (activeTab === 'orders') {
+    if (user && activeTab === 'orders') {
       void loadOrders();
     }
-  }, [activeTab, currentPage, orderStatusFilter]);
+  }, [activeTab, currentPage, orderStatusFilter, user]);
 
   // Open order detail modal and fetch full details
   const handleOpenOrderDetail = async (orderId: number) => {
@@ -695,7 +695,7 @@ const UserInfoPage: React.FC = () => {
                   </div>
                   <div className="flex items-center gap-2 text-on-surface-variant text-body-md">
                     <span className="material-symbols-outlined text-[18px]">info</span>
-                    <span>{orders.length} đơn hàng</span>
+                    <span>{orderTotalElements} đơn hàng</span>
                   </div>
                 </div>
 
@@ -841,7 +841,7 @@ const UserInfoPage: React.FC = () => {
                     </div>
 
                     {/* Pagination */}
-                    {orders.length >= ORDERS_PER_PAGE && (
+                    {orderTotalPages > 1 && (
                       <div className="flex justify-center items-center gap-2 pt-4">
                         <button
                           onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
@@ -850,9 +850,12 @@ const UserInfoPage: React.FC = () => {
                         >
                           <span className="material-symbols-outlined">chevron_left</span>
                         </button>
+                        <span className="px-3 text-sm font-semibold text-on-surface-variant">
+                          Trang {currentPage} / {orderTotalPages}
+                        </span>
                         <button
-                          onClick={() => setCurrentPage((p) => Math.min(Math.ceil(orders.length / ORDERS_PER_PAGE), p + 1))}
-                          disabled={orders.length < ORDERS_PER_PAGE}
+                          onClick={() => setCurrentPage((p) => Math.min(orderTotalPages, p + 1))}
+                          disabled={currentPage >= orderTotalPages}
                           className="w-10 h-10 rounded-full border border-outline-variant flex items-center justify-center hover:bg-surface-variant transition-colors disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer"
                         >
                           <span className="material-symbols-outlined">chevron_right</span>

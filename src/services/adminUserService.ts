@@ -1,6 +1,6 @@
 import type { User } from "../types/user";
-import type { AuthResponse } from "../types/auth";
 import { apiRequest, toJsonBody } from "./apiClient";
+import type { PageResponse } from "./adminOrderService";
 import { normalizeUser } from "./userService";
 
 const ADMIN_PROTECTED_ROLES = new Set(["ROLE_ADMIN", "ADMIN"]);
@@ -24,9 +24,28 @@ export interface UpdateUserPayload {
   phoneNumber?: string;
 }
 
-export const getUsers = async () => {
-  const users = await apiRequest<User[]>("/users", { requireAuth: true });
-  return users.map(normalizeUser);
+export const getUsers = async (params: { page?: number; size?: number } = {}) => {
+  const pageNumber = params.page ?? 0;
+  const pageSize = params.size ?? 20;
+  const response = await apiRequest<PageResponse<User> | User[]>(
+    `/admin/users?page=${pageNumber}&size=${pageSize}`,
+    { requireAuth: true },
+  );
+
+  if (Array.isArray(response)) {
+    return {
+      content: response.map(normalizeUser),
+      totalElements: response.length,
+      totalPages: response.length ? 1 : 0,
+      size: pageSize,
+      number: pageNumber,
+    } satisfies PageResponse<User>;
+  }
+
+  return {
+    ...response,
+    content: response.content.map(normalizeUser),
+  };
 };
 
 export const getUserById = async (id: string | number) => {
@@ -35,14 +54,10 @@ export const getUserById = async (id: string | number) => {
 };
 
 export const createUser = async (payload: CreateUserPayload) => {
-  await apiRequest<AuthResponse>("/auth/signup", {
+  await apiRequest<User>("/admin/users", {
     method: "POST",
-    body: toJsonBody({
-      fullName: payload.fullName,
-      email: payload.email,
-      phoneNumber: payload.phoneNumber,
-      password: payload.password,
-    }),
+    body: toJsonBody(payload),
+    requireAuth: true,
   });
 };
 

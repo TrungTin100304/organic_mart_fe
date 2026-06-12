@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { ChevronDown, ChevronRight, LayoutGrid, List } from "lucide-react";
+import { ChevronDown, ChevronLeft, ChevronRight, LayoutGrid, List } from "lucide-react";
 import type { Product } from "../types";
 import ProductCard from "../components/ProductCard";
 import { AnimatePresence, motion } from "motion/react";
@@ -22,12 +22,15 @@ const staggerContainer = {
   },
 };
 
+const SHOP_PAGE_SIZE = 9;
+
 export default function Shop() {
   const [products, setProducts] = useState<Product[]>([]);
   const [categories, setCategories] = useState<ProductCategory[]>([]);
   const [activeCategoryId, setActiveCategoryId] = useState<string | null>(null);
   const [expandedCategoryId, setExpandedCategoryId] = useState<string | null>(null);
   const [sort, setSort] = useState("default");
+  const [currentPage, setCurrentPage] = useState(1);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState("");
 
@@ -61,6 +64,16 @@ export default function Shop() {
       return 0;
     });
   }, [products, categories, activeCategoryId, sort]);
+
+  const totalPages = Math.ceil(filteredProducts.length / SHOP_PAGE_SIZE);
+  const paginatedProducts = useMemo(() => {
+    const start = (currentPage - 1) * SHOP_PAGE_SIZE;
+    return filteredProducts.slice(start, start + SHOP_PAGE_SIZE);
+  }, [currentPage, filteredProducts]);
+
+  useEffect(() => {
+    setCurrentPage(1);
+  }, [activeCategoryId, sort]);
 
   const loadingCategories = isLoading && categories.length === 0;
 
@@ -186,7 +199,9 @@ export default function Shop() {
         >
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 md:mb-8 bg-white p-4 rounded-2xl border border-outline-variant gap-4">
             <div className="flex items-center gap-4 w-full sm:w-auto justify-between sm:justify-start">
-              <span className="font-bold hidden sm:block opacity-60">Hiển thị {filteredProducts.length}</span>
+              <span className="font-bold hidden sm:block opacity-60">
+                Hiển thị {paginatedProducts.length} / {filteredProducts.length}
+              </span>
               <div className="flex gap-2">
                 <button className="p-2 text-primary border border-primary rounded-lg bg-primary-container/20"><LayoutGrid size={20} /></button>
                 <button className="p-2 text-on-surface-variant border border-transparent rounded-lg hover:text-primary hover:bg-surface-container"><List size={20} /></button>
@@ -211,7 +226,7 @@ export default function Shop() {
           {error && <p className="text-red-600 font-semibold">{error}</p>}
           {!isLoading && !error && (
             <motion.div variants={staggerContainer} initial="initial" animate="animate" className="grid grid-cols-2 lg:grid-cols-3 gap-6">
-              {filteredProducts.map((product) => (
+              {paginatedProducts.map((product) => (
                 <motion.div
                   key={product.id}
                   variants={{
@@ -223,6 +238,32 @@ export default function Shop() {
                 </motion.div>
               ))}
             </motion.div>
+          )}
+
+          {!isLoading && !error && totalPages > 1 && (
+            <div className="flex items-center justify-center gap-3 mt-8">
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.max(1, page - 1))}
+                disabled={currentPage === 1}
+                aria-label="Trang trước"
+                className="p-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronLeft size={18} />
+              </button>
+              <span className="text-sm font-semibold text-on-surface-variant">
+                Trang {currentPage} / {totalPages}
+              </span>
+              <button
+                type="button"
+                onClick={() => setCurrentPage((page) => Math.min(totalPages, page + 1))}
+                disabled={currentPage >= totalPages}
+                aria-label="Trang sau"
+                className="p-2.5 rounded-xl border border-outline-variant text-on-surface-variant hover:border-primary hover:text-primary disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+              >
+                <ChevronRight size={18} />
+              </button>
+            </div>
           )}
         </motion.div>
       </div>
