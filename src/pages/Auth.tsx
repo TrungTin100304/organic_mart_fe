@@ -44,14 +44,11 @@ export default function Auth() {
 
   const handleLoginSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Submitting login in Auth.tsx...", { email: loginEmail, password: loginPassword });
     setLoginLoading(true);
     setLoginError("");
 
     try {
       const response = await login({ email: loginEmail, password: loginPassword });
-      console.log("Login success:", response);
-
       localStorage.setItem("accessToken", response.accessToken);
       localStorage.setItem("refreshToken", response.refreshToken);
       localStorage.setItem("userEmail", response.email);

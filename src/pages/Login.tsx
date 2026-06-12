@@ -18,14 +18,11 @@ export default function Login() {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    console.log("Submitting login form...", { email, password });
     setIsLoading(true);
     setError("");
 
     try {
       const response = await login({ email, password });
-      console.log("Login success:", response);
-
       localStorage.setItem("accessToken", response.accessToken);
       localStorage.setItem("refreshToken", response.refreshToken);
       localStorage.setItem("userEmail", response.email);

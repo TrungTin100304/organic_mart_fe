@@ -12,6 +12,7 @@ export interface ApiRequestOptions extends RequestInit {
 }
 
 const DEFAULT_API_BASE_URL = "https://organic-mart-be.onrender.com/api/v1";
+let refreshPromise: Promise<boolean> | null = null;
 
 export const resolveApiBaseUrl = ({
   baseUrl,
@@ -195,13 +196,14 @@ export async function apiRequest<T>(
 
   if (!response.ok) {
     if (response.status === 401 && !skipRefresh && getRefreshToken()) {
-      const refreshed = await refreshAccessToken(baseUrl);
-      if (refreshed) {
+      const refreshed = await refreshAccessTokenOnce(baseUrl);
+      const activeToken = getAccessToken();
+      if (refreshed || (activeToken && activeToken !== token)) {
         return apiRequest<T>(endpoint, { ...options, skipRefresh: true }, baseUrl);
       }
     }
 
-    if (response.status === 401) {
+    if (response.status === 401 && getAccessToken() === token) {
       clearAuthStorage();
     }
 
@@ -225,6 +227,15 @@ export async function apiRequest<T>(
 }
 
 export const toJsonBody = <T>(data: T) => JSON.stringify(data);
+
+const refreshAccessTokenOnce = (baseUrl: string) => {
+  if (!refreshPromise) {
+    refreshPromise = refreshAccessToken(baseUrl).finally(() => {
+      refreshPromise = null;
+    });
+  }
+  return refreshPromise;
+};
 
 async function refreshAccessToken(baseUrl: string) {
   const refreshToken = getRefreshToken();
@@ -255,7 +266,9 @@ async function refreshAccessToken(baseUrl: string) {
   }
 
   if (!response.ok) {
-    clearAuthStorage();
+    if (getRefreshToken() === refreshToken) {
+      clearAuthStorage();
+    }
     return false;
   }
 
