@@ -136,9 +136,16 @@ const UserInfoPage: React.FC = () => {
 
   useEffect(() => {
     if (error) {
-      localStorage.removeItem("accessToken");
-      localStorage.removeItem("refreshToken");
-      navigate('/login');
+      const isAuthError =
+        error.includes("đăng nhập") ||
+        error.includes("401") ||
+        error.includes("Unauthorized") ||
+        error.includes("Unauthorized");
+      if (isAuthError) {
+        localStorage.removeItem("accessToken");
+        localStorage.removeItem("refreshToken");
+        navigate("/login");
+      }
     }
   }, [error, navigate]);
 

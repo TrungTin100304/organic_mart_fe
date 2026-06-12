@@ -5,14 +5,9 @@ import {defineConfig, loadEnv} from 'vite';
 
 export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
-  const apiProxyTarget = env.VITE_API_PROXY_TARGET || 'https://organic-mart-be-1.onrender.com';
-  const apiProxy = {
-    '/api/v1': {
-      target: apiProxyTarget,
-      changeOrigin: true,
-      secure: true,
-    },
-  };
+
+  const proxyTarget = env.VITE_API_PROXY_TARGET
+    || 'https://organic-mart-be.onrender.com';
 
   return {
     plugins: [react(), tailwindcss()],
@@ -25,15 +20,26 @@ export default defineConfig(({mode}) => {
       },
     },
     server: {
-      // HMR is disabled in AI Studio via DISABLE_HMR env var.
-      // Do not modifyâfile watching is disabled to prevent flickering during agent edits.
       hmr: process.env.DISABLE_HMR !== 'true',
-      // Disable file watching when DISABLE_HMR is true to save CPU during agent edits.
       watch: process.env.DISABLE_HMR === 'true' ? null : {},
-      proxy: apiProxy,
+      proxy: {
+        '/api/v1': {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: true,
+          rewrite: (pathStr) => pathStr,
+        },
+      },
     },
     preview: {
-      proxy: apiProxy,
+      proxy: {
+        '/api/v1': {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: true,
+          rewrite: (pathStr) => pathStr,
+        },
+      },
     },
   };
 });

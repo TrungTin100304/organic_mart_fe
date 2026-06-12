@@ -14,6 +14,11 @@ const fallbackData = <T>(fallback: FallbackValue<T>) =>
 const errorMessage = (error: unknown) =>
   error instanceof Error ? error.message : "Không thể kết nối API.";
 
+const isAuthError = (error: unknown) => {
+  const msg = error instanceof Error ? error.message : String(error);
+  return /401|đăng nhập|unauthorized/i.test(msg);
+};
+
 export const isAdminMockEnabled = () =>
   import.meta.env?.VITE_ENABLE_ADMIN_MOCKS === "true";
 
@@ -32,10 +37,13 @@ export async function loadAdminDataWithFallback<T>(
       throw error;
     }
 
+    const authError = isAuthError(error);
     return {
       data: fallbackData(fallback),
       source: "mock",
-      error: errorMessage(error),
+      error: authError
+        ? "Không thể xác thực. Vui lòng đăng nhập lại."
+        : errorMessage(error),
     };
   }
 }
