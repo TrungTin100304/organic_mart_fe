@@ -327,3 +327,138 @@ test("a stale refresh failure does not clear a newer session from another tab", 
     }
   }
 });
+
+test("a public request neither sends bearer token nor clears the signed-in session on 401", async () => {
+  const storage = new Map<string, string>([
+    ["accessToken", "admin-token"],
+    ["refreshToken", "admin-refresh-token"],
+    ["userRole", "ROLE_ADMIN"],
+  ]);
+  const originalFetch = globalThis.fetch;
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  let refreshCalls = 0;
+  let publicAuthorization: string | undefined;
+
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    if (String(url).endsWith("/auth/refresh")) {
+      refreshCalls += 1;
+    } else {
+      publicAuthorization = (init?.headers as Record<string, string> | undefined)?.Authorization;
+    }
+
+    return new Response(JSON.stringify({ status: 401, message: "Public endpoint unavailable" }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => apiRequest("/products", {}, "http://api.test/api/v1"),
+      /Public endpoint unavailable/,
+    );
+
+    assert.equal(publicAuthorization, undefined);
+    assert.equal(refreshCalls, 0);
+    assert.equal(storage.get("accessToken"), "admin-token");
+    assert.equal(storage.get("refreshToken"), "admin-refresh-token");
+    assert.equal(storage.get("userRole"), "ROLE_ADMIN");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalLocalStorage) {
+      Object.defineProperty(globalThis, "localStorage", originalLocalStorage);
+    } else {
+      delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+    }
+  }
+});
+
+test("a protected request refreshes an expired JWT before calling the endpoint", async () => {
+  const expiredPayload = Buffer.from(JSON.stringify({
+    exp: Math.floor(Date.now() / 1000) - 60,
+  })).toString("base64url");
+  const expiredToken = `header.${expiredPayload}.signature`;
+  const storage = new Map<string, string>([
+    ["accessToken", expiredToken],
+    ["refreshToken", "admin-refresh-token"],
+    ["userRole", "ROLE_ADMIN"],
+  ]);
+  const originalFetch = globalThis.fetch;
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  const calls: Array<{ url: string; authorization?: string }> = [];
+
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+
+  globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+    const requestUrl = String(url);
+    calls.push({
+      url: requestUrl,
+      authorization: (init?.headers as Record<string, string> | undefined)?.Authorization,
+    });
+
+    if (requestUrl.endsWith("/auth/refresh")) {
+      return new Response(JSON.stringify({
+        status: 200,
+        message: "OK",
+        data: {
+          accessToken: "fresh-admin-token",
+          refreshToken: "fresh-admin-refresh",
+          email: "admin@test.dev",
+          role: "ROLE_ADMIN",
+        },
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    if ((init?.headers as Record<string, string> | undefined)?.Authorization === `Bearer ${expiredToken}`) {
+      return new Response(JSON.stringify({ status: 401, message: "Expired" }), {
+        status: 401,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ status: 200, message: "OK", data: { id: 7 } }), {
+      status: 200,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    const result = await apiRequest<{ id: number }>(
+      "/admin/users",
+      { requireAuth: true },
+      "http://api.test/api/v1",
+    );
+
+    assert.deepEqual(result, { id: 7 });
+    assert.equal(calls.length, 2);
+    assert.match(calls[0].url, /\/auth\/refresh$/);
+    assert.match(calls[1].url, /\/admin\/users$/);
+    assert.equal(calls[1].authorization, "Bearer fresh-admin-token");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalLocalStorage) {
+      Object.defineProperty(globalThis, "localStorage", originalLocalStorage);
+    } else {
+      delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+    }
+  }
+});

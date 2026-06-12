@@ -72,6 +72,23 @@ const getRefreshToken = () => {
   }
 };
 
+const isJwtExpiredOrExpiring = (token: string, bufferSeconds = 30) => {
+  try {
+    const payloadPart = token.split(".")[1];
+    if (!payloadPart) return false;
+
+    const base64 = payloadPart.replace(/-/g, "+").replace(/_/g, "/");
+    const paddedBase64 = base64.padEnd(Math.ceil(base64.length / 4) * 4, "=");
+    const payload = JSON.parse(globalThis.atob(paddedBase64)) as { exp?: unknown };
+    const expiresAt = typeof payload.exp === "number" ? payload.exp : Number(payload.exp);
+
+    return Number.isFinite(expiresAt) && expiresAt <= Math.floor(Date.now() / 1000) + bufferSeconds;
+  } catch {
+    // Non-JWT and malformed tokens are left for the backend to validate.
+    return false;
+  }
+};
+
 const storeAuthTokens = (auth: { accessToken: string; refreshToken: string; email?: string; role?: string }) => {
   try {
     localStorage.setItem("accessToken", auth.accessToken);
@@ -129,7 +146,12 @@ export async function apiRequest<T>(
   baseUrl = getConfiguredBaseUrl()
 ): Promise<T> {
   const { requireAuth = false, skipRefresh = false, headers, body, ...init } = options;
-  const token = getAccessToken();
+  let token = getAccessToken();
+
+  if (requireAuth && token && isJwtExpiredOrExpiring(token) && getRefreshToken()) {
+    await refreshAccessTokenOnce(baseUrl);
+    token = getAccessToken();
+  }
 
   if (requireAuth && !token) {
     throw new Error("Vui lòng đăng nhập để tiếp tục.");
@@ -144,7 +166,7 @@ export async function apiRequest<T>(
     requestHeaders["Content-Type"] = "application/json";
   }
 
-  if (token) {
+  if (requireAuth && token) {
     requestHeaders.Authorization = `Bearer ${token}`;
   }
 
@@ -195,7 +217,7 @@ export async function apiRequest<T>(
   }
 
   if (!response.ok) {
-    if (response.status === 401 && !skipRefresh && getRefreshToken()) {
+    if (requireAuth && response.status === 401 && !skipRefresh && getRefreshToken()) {
       const refreshed = await refreshAccessTokenOnce(baseUrl);
       const activeToken = getAccessToken();
       if (refreshed || (activeToken && activeToken !== token)) {
@@ -203,7 +225,7 @@ export async function apiRequest<T>(
       }
     }
 
-    if (response.status === 401 && getAccessToken() === token) {
+    if (requireAuth && response.status === 401 && getAccessToken() === token) {
       clearAuthStorage();
     }
 
