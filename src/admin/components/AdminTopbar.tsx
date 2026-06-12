@@ -1,9 +1,11 @@
 import { useState, useRef, useEffect } from 'react';
-import { Search, Bell, Menu, ChevronDown, Download, Plus, User, LogOut, Settings } from 'lucide-react';
+import { Search, Bell, Menu, ChevronDown, Download, Plus, User, LogOut, Settings, LoaderCircle } from 'lucide-react';
 import { Link } from 'react-router-dom';
 import { motion, AnimatePresence } from 'motion/react';
 import { getCurrentUser } from '../../services/userService';
 import { logout } from '../../services/authService';
+import { getAdminDashboard } from '../../services/adminDashboardService';
+import { downloadDashboardReport } from '../utils/dashboardReport';
 
 interface AdminTopbarProps {
   onMenuClick: () => void;
@@ -13,6 +15,8 @@ export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
   const [showNotif, setShowNotif] = useState(false);
   const [showProfile, setShowProfile] = useState(false);
   const [adminName, setAdminName] = useState('Admin');
+  const [isExporting, setIsExporting] = useState(false);
+  const [reportNotice, setReportNotice] = useState('');
   const notifRef = useRef<HTMLDivElement>(null);
   const profileRef = useRef<HTMLDivElement>(null);
 
@@ -46,6 +50,20 @@ export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
     localStorage.removeItem('userRole');
   };
 
+  const handleExportReport = async () => {
+    setIsExporting(true);
+    setReportNotice('');
+    try {
+      const report = await getAdminDashboard(30);
+      downloadDashboardReport(report, 30);
+      setReportNotice('Đã xuất báo cáo 30 ngày.');
+    } catch (error) {
+      setReportNotice(error instanceof Error ? error.message : 'Không thể xuất báo cáo.');
+    } finally {
+      setIsExporting(false);
+    }
+  };
+
   const notifications = [
     { id: 1, text: 'Đơn hàng #ORD-2025-001 mới cần xác nhận', time: '5 phút trước', unread: true },
     { id: 2, text: 'Nấm hương tươi sắp hết hàng (còn 3)', time: '15 phút trước', unread: true },
@@ -69,11 +87,17 @@ export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
       {/* Right */}
       <div className="flex items-center gap-2">
         {/* Quick actions */}
-        <Link to="/admin/products" className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:brightness-110 transition-all">
+        <Link to="/admin/products?create=true" className="hidden md:flex items-center gap-1.5 px-3 py-2 bg-primary text-white rounded-xl text-xs font-bold hover:brightness-110 transition-all">
           <Plus className="w-3.5 h-3.5" /> Thêm sản phẩm
         </Link>
-        <button className="hidden md:flex items-center gap-1.5 px-3 py-2 border border-outline-variant/40 text-on-surface-variant rounded-xl text-xs font-medium hover:bg-surface-container transition-all">
-          <Download className="w-3.5 h-3.5" /> Xuất báo cáo
+        <button
+          type="button"
+          onClick={() => void handleExportReport()}
+          disabled={isExporting}
+          className="hidden md:flex items-center gap-1.5 px-3 py-2 border border-outline-variant/40 text-on-surface-variant rounded-xl text-xs font-medium hover:bg-surface-container transition-all disabled:opacity-50"
+        >
+          {isExporting ? <LoaderCircle className="w-3.5 h-3.5 animate-spin" /> : <Download className="w-3.5 h-3.5" />}
+          {isExporting ? 'Đang xuất...' : 'Xuất báo cáo'}
         </button>
 
         {/* Notifications */}
@@ -136,6 +160,11 @@ export default function AdminTopbar({ onMenuClick }: AdminTopbarProps) {
           </AnimatePresence>
         </div>
       </div>
+      {reportNotice && (
+        <div role="status" className="fixed right-4 top-20 z-50 max-w-sm rounded-xl border border-outline-variant/30 bg-white px-4 py-3 text-sm font-semibold text-on-surface shadow-xl">
+          {reportNotice}
+        </div>
+      )}
     </header>
   );
 }

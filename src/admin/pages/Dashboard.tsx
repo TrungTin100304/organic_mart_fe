@@ -16,6 +16,7 @@ import {
   YAxis,
 } from "recharts";
 import { getAdminDashboard, type AdminDashboardData } from "../../services/adminDashboardService";
+import { downloadDashboardReport } from "../utils/dashboardReport";
 
 const money = (value: number) => `${Number(value || 0).toLocaleString("vi-VN")}đ`;
 const emptyDashboard: AdminDashboardData = {
@@ -83,14 +84,7 @@ export default function Dashboard() {
   ];
 
   const exportCsv = () => {
-    const rows = [["date", "revenue"], ...data.revenue.map((item) => [item.date, String(item.revenue)])];
-    const blob = new Blob([rows.map((row) => row.join(",")).join("\n")], { type: "text/csv;charset=utf-8" });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement("a");
-    link.href = url;
-    link.download = `organic-mart-revenue-${days}-days.csv`;
-    link.click();
-    URL.revokeObjectURL(url);
+    downloadDashboardReport(data, days);
   };
 
   return (

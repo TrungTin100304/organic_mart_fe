@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { motion } from "motion/react";
 import { Search, Plus, Edit2, Trash2, Leaf, Package, PackagePlus, RefreshCw } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, useSearchParams } from "react-router-dom";
 import AdminConfirmModal from "../components/AdminConfirmModal";
 import ProductFormModal from "../components/ProductFormModal";
 import type { AdminProduct } from "../types";
@@ -47,6 +47,7 @@ const toAdminProduct = (product: Product, batches: InventoryBatch[]): AdminProdu
 
 export default function Products() {
   const navigate = useNavigate();
+  const [searchParams, setSearchParams] = useSearchParams();
   const [search, setSearch] = useState("");
   const [catFilter, setCatFilter] = useState("all");
   const [showForm, setShowForm] = useState(false);
@@ -106,6 +107,23 @@ export default function Products() {
     void syncRole();
   }, []);
 
+  useEffect(() => {
+    if (searchParams.get("create") === "true") {
+      setEditProduct(null);
+      setShowForm(true);
+    }
+  }, [searchParams]);
+
+  const closeProductForm = () => {
+    setShowForm(false);
+    setEditProduct(null);
+    if (searchParams.has("create")) {
+      const nextParams = new URLSearchParams(searchParams);
+      nextParams.delete("create");
+      setSearchParams(nextParams, { replace: true });
+    }
+  };
+
   const syncRole = async () => {
     try {
       const me = await getCurrentUser();
@@ -159,8 +177,7 @@ export default function Products() {
       } else {
         await createProduct(payload);
       }
-      setShowForm(false);
-      setEditProduct(null);
+      closeProductForm();
       await loadData();
     } catch (err: any) {
       throw new Error(err?.message || "Không thể lưu sản phẩm.");
@@ -303,7 +320,7 @@ export default function Products() {
         categories={categories}
         open={showForm}
         isSubmitting={isSubmitting}
-        onClose={() => setShowForm(false)}
+        onClose={closeProductForm}
         onSubmit={handleSubmit}
       />
       <AdminConfirmModal
