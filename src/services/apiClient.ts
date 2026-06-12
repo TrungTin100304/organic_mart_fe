@@ -225,7 +225,7 @@ export async function apiRequest<T>(
       }
     }
 
-    if (requireAuth && response.status === 401 && getAccessToken() === token) {
+    if (requireAuth && response.status === 401 && !skipRefresh && getAccessToken() === token) {
       clearAuthStorage();
     }
 

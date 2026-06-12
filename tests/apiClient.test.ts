@@ -462,3 +462,70 @@ test("a protected request refreshes an expired JWT before calling the endpoint",
     }
   }
 });
+
+test("a protected endpoint returning 401 after a successful refresh does not clear the new session", async () => {
+  const storage = new Map<string, string>([
+    ["accessToken", "expired-token"],
+    ["refreshToken", "admin-refresh-token"],
+    ["userRole", "ROLE_ADMIN"],
+  ]);
+  const originalFetch = globalThis.fetch;
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+  let endpointCalls = 0;
+
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+
+  globalThis.fetch = (async (url: string | URL | Request) => {
+    if (String(url).endsWith("/auth/refresh")) {
+      return new Response(JSON.stringify({
+        status: 200,
+        message: "OK",
+        data: {
+          accessToken: "fresh-admin-token",
+          refreshToken: "fresh-admin-refresh",
+          email: "admin@test.dev",
+          role: "ROLE_ADMIN",
+        },
+      }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    endpointCalls += 1;
+    return new Response(JSON.stringify({
+      success: false,
+      statusCode: 401,
+      message: "Vui lòng đăng nhập để tiếp tục.",
+    }), {
+      status: 401,
+      headers: { "Content-Type": "application/json" },
+    });
+  }) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => apiRequest("/missing-admin-route", { requireAuth: true }, "http://api.test/api/v1"),
+      /Vui lòng đăng nhập để tiếp tục/,
+    );
+
+    assert.equal(endpointCalls, 2);
+    assert.equal(storage.get("accessToken"), "fresh-admin-token");
+    assert.equal(storage.get("refreshToken"), "fresh-admin-refresh");
+    assert.equal(storage.get("userRole"), "ROLE_ADMIN");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalLocalStorage) {
+      Object.defineProperty(globalThis, "localStorage", originalLocalStorage);
+    } else {
+      delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+    }
+  }
+});

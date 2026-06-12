@@ -21,8 +21,9 @@ test("admin users page protects the current account from status changes", () => 
   assert.match(usersPage, /disabled=\{isStatusUpdating \|\| isCurrentUser\(user\)\}/);
 });
 
-test("admin users use the protected paginated admin endpoint", () => {
-  assert.match(userService, /\/admin\/users/);
+test("admin users use the protected users endpoint exposed by the backend", () => {
+  assert.match(userService, /`\/users\?page=/);
+  assert.doesNotMatch(userService, /`\/admin\/users\?page=/);
   assert.match(userService, /PageResponse/);
   assert.match(usersPage, /totalPages/);
   assert.match(usersPage, /currentPage/);

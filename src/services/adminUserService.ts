@@ -28,7 +28,7 @@ export const getUsers = async (params: { page?: number; size?: number } = {}) =>
   const pageNumber = params.page ?? 0;
   const pageSize = params.size ?? 20;
   const response = await apiRequest<PageResponse<User> | User[]>(
-    `/admin/users?page=${pageNumber}&size=${pageSize}`,
+    `/users?page=${pageNumber}&size=${pageSize}`,
     { requireAuth: true },
   );
 

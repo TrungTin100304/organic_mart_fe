@@ -393,7 +393,7 @@ test("catalog and admin services call the expected backend endpoints", async () 
     { name: "create inventory batch", call: () => inventoryBatchService.createInventoryBatch(batchRequest), expectedRoute: "/inventory-batches", expectedMethod: "POST", response: batchResponse },
     { name: "update inventory batch", call: () => inventoryBatchService.updateInventoryBatch(8, batchRequest), expectedRoute: "/inventory-batches/8", expectedMethod: "PUT", response: batchResponse },
     { name: "delete inventory batch", call: () => inventoryBatchService.deleteInventoryBatch(8), expectedRoute: "/inventory-batches/8", expectedMethod: "DELETE", response: null },
-    { name: "users", call: () => adminUserService.getUsers(), expectedRoute: "/admin/users?page=0&size=20", response: [userResponse] },
+    { name: "users", call: () => adminUserService.getUsers(), expectedRoute: "/users?page=0&size=20", response: [userResponse] },
     {
       name: "create user",
       call: () => adminUserService.createUser({
