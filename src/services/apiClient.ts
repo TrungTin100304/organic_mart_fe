@@ -91,6 +91,18 @@ const joinUrl = (baseUrl: string, endpoint: string) => {
 const getInfrastructureErrorMessage = (status: number, text: string) => {
   const normalizedText = text.toLowerCase();
 
+  if (
+    normalizedText.includes("gemini")
+    && (
+      status === 429
+      || normalizedText.includes("429 too many requests")
+      || normalizedText.includes("quota exceeded")
+      || normalizedText.includes("resource_exhausted")
+    )
+  ) {
+    return "Dịch vụ tạo thực đơn AI đã hết hạn mức sử dụng. Vui lòng thử lại sau hoặc liên hệ quản trị viên.";
+  }
+
   if (status === 503 && normalizedText.includes("service has been suspended")) {
     return "Backend Render đang bị tạm ngưng. Hãy resume hoặc redeploy service trên Render.";
   }
@@ -193,10 +205,10 @@ export async function apiRequest<T>(
       clearAuthStorage();
     }
 
-    const message = payload?.message
+    const message = getInfrastructureErrorMessage(response.status, text)
+      || payload?.message
       || payload?.error
       || payload
-      || getInfrastructureErrorMessage(response.status, text)
       || `API request failed (${response.status})`;
     if (typeof window !== "undefined") {
       // eslint-disable-next-line no-console

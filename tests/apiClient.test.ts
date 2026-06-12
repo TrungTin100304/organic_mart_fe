@@ -94,6 +94,31 @@ test("apiRequest reports a clear message when the Render backend is suspended", 
   }
 });
 
+test("apiRequest hides Gemini quota details behind a helpful message", async () => {
+  const originalFetch = globalThis.fetch;
+
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({
+      status: 500,
+      message: 'Đã xảy ra lỗi trên hệ thống: Failed to call Gemini API: 429 Too Many Requests. Quota exceeded for metric: generate_content_free_tier_requests',
+      data: null,
+    }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => apiRequest("/meal-plans/generate", { method: "POST" }, "http://api.test/api/v1"),
+      {
+        message: "Dịch vụ tạo thực đơn AI đã hết hạn mức sử dụng. Vui lòng thử lại sau hoặc liên hệ quản trị viên.",
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+  }
+});
+
 test("apiRequest refreshes an expired access token once and retries the original request", async () => {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const storage = new Map<string, string>([
