@@ -175,7 +175,7 @@ export default function Auth() {
   const renderRegisterForm = () => (
     <div className="w-full max-w-sm pt-8 md:pt-0">
       <h1 className="text-3xl font-bold text-on-surface mb-2">Đăng ký</h1>
-      <p className="text-on-surface-variant mb-6 text-xs">Gia nhập cộng đồng Organic Mart.</p>
+      <p className="text-on-surface-variant mb-6 text-xs">Gia nhập cộng đồng RAU NHA MINH.</p>
 
       {regError && (
         <div className="mb-4 p-3 bg-red-100 text-red-700 rounded-lg text-sm">
@@ -314,7 +314,7 @@ export default function Auth() {
               <p className="text-lg opacity-90 max-w-sm">
                 {isLogin
                   ? "Đăng nhập để tiếp tục hành trình mua sắm thực phẩm sạch."
-                  : "Gia nhập cộng đồng Organic Mart để nhận những ưu đãi tốt nhất."}
+                  : "Gia nhập cộng đồng RAU NHA MINH để nhận những ưu đãi tốt nhất."}
               </p>
             </div>
           </div>

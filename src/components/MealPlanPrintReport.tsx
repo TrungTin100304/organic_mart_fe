@@ -73,7 +73,7 @@ export default function MealPlanPrintReport({
   return (
     <article className="meal-plan-print-report" data-meal-plan-print-report="true">
       <header className="meal-plan-print-cover">
-        <p className="meal-plan-print-eyebrow">Organic Mart · Thực đơn cá nhân</p>
+        <p className="meal-plan-print-eyebrow">RAU NHA MINH · Thực đơn cá nhân</p>
         <h1>{plan.name}</h1>
         <p>
           {plan.numberOfDays} ngày · {plan.mealsPerDay} bữa/ngày · {plan.servings} khẩu phần ·{" "}

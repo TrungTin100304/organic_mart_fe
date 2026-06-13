@@ -13,7 +13,7 @@ export const buildDashboardReportCsv = (
   generatedAt = new Date(),
 ) => {
   const rows: string[] = [
-    row("BÁO CÁO QUẢN TRỊ ORGANIC MART"),
+    row("BÁO CÁO QUẢN TRỊ RAU NHA MINH"),
     row("Thời điểm xuất", generatedAt.toLocaleString("vi-VN")),
     "",
     row("TỔNG QUAN"),

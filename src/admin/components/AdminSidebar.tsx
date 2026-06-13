@@ -35,7 +35,7 @@ export default function AdminSidebar({ collapsed, onToggle, mobileOpen, onMobile
         </div>
         {!collapsed && (
           <motion.div initial={{ opacity: 0 }} animate={{ opacity: 1 }} className="overflow-hidden">
-            <span className="font-bold text-primary text-sm whitespace-nowrap">Organic Mart</span>
+            <span className="font-bold text-primary text-sm whitespace-nowrap">RAU NHA MINH</span>
             <span className="block text-[10px] text-on-surface-variant font-medium -mt-0.5">Admin Panel</span>
           </motion.div>
         )}

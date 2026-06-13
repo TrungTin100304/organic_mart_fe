@@ -23,7 +23,7 @@ interface ShippingSettings {
 
 export default function SettingsPage() {
   const [store, setStore] = useState<StoreSettings>({
-    name: "Organic Mart",
+    name: "RAU NHA MINH",
     email: "info@organicmart.vn",
     phone: "1900 6868",
     address: "123 Nguyễn Huệ, Q.1, TP.HCM",

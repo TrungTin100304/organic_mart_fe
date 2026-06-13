@@ -775,7 +775,7 @@ function OrderSuccess({ order, total }: { order: OrderResponse; total: number })
         </div>
         <p className="text-xs font-bold uppercase tracking-[0.2em] text-primary">Đặt hàng thành công</p>
         <h1 className="mt-3 text-3xl font-bold tracking-tight text-on-surface">
-          Cảm ơn bạn đã chọn Organic Mart
+          Cảm ơn bạn đã chọn RAU NHA MINH
         </h1>
         <p className="mx-auto mt-4 max-w-lg text-on-surface-variant">
           Đơn <strong className="text-on-surface">{order.orderCode}</strong> đã được tạo và đang chờ xác nhận.

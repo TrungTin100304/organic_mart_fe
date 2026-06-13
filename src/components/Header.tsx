@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { Link, useLocation } from "react-router-dom";
 import { getCurrentCart } from "@/services/cartService";
+import logo from "@/assets/logo.png";
 
 export default function Navbar() {
   const location = useLocation();
@@ -74,8 +75,9 @@ export default function Navbar() {
           <button className="md:hidden p-2 -ml-2 mr-2 text-on-surface-variant">
             <span className="material-symbols-outlined text-[24px]">menu</span>
           </button>
-          <Link to="/" className="text-xl md:text-headline-md font-bold text-primary shrink-0 hover:brightness-90 transition-all">
-            Organic Mart
+          <Link to="/" className="flex items-center gap-2 shrink-0 hover:brightness-90 transition-all">
+            <img src={logo} alt="RAU NHA MINH" className="h-10 md:h-12 w-auto object-contain" />
+            <span className="text-lg md:text-xl font-bold text-primary">RAU NHA MINH</span>
           </Link>
         </div>
 

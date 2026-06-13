@@ -37,7 +37,7 @@ const POSTS = [
 		id: "p4",
 		category: "Tin tức",
 		time: "4 phút đọc",
-		title: "Organic Mart Mở Rộng Hệ Thống Cửa Hàng Tại Đà Nẵng",
+		title: "RAU NHA MINH Mở Rộng Hệ Thống Cửa Hàng Tại Đà Nẵng",
 		excerpt:
 			"Tin vui cho khách hàng miền Trung, chúng tôi chính thức có mặt tại Đà Nẵng với nhiều ưu đãi đặc biệt trong tuần lễ khai trương.",
 		image:
@@ -154,8 +154,7 @@ export default function About() {
 								Bản tin sức khỏe
 							</h4>
 							<p className="font-body-md text-body-md text-on-surface-variant mb-stack-md">
-								Nhận bí quyết sống khỏe và ưu đãi mới nhất từ Organic Mart hàng
-								tuần.
+								tuần từ RAU NHA MINH
 							</p>
 							<form
 								onSubmit={handleSubscribe}

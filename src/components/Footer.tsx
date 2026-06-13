@@ -10,7 +10,7 @@ export default function Footer() {
     <footer className="bg-secondary text-on-secondary w-full mt-auto">
       <div className="max-w-[1280px] mx-auto py-8 md:py-16 px-6 md:px-10 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-8 md:gap-10">
         <div className="col-span-1 sm:col-span-2 md:col-span-1">
-          <span className="text-xl font-bold text-on-secondary block mb-4">Organic Mart</span>
+          <span className="text-xl font-bold text-on-secondary block mb-4">RAU NHA MINH</span>
           <p className="text-sm md:text-base opacity-80 mb-6">Chuỗi cửa hàng thực phẩm sạch, mang sức khỏe bền vững đến mọi nhà.</p>
           <div className="flex gap-3">
             <a className="w-10 h-10 bg-white/10 rounded-full flex items-center justify-center hover:bg-white/20 transition-all" href="#">
@@ -51,7 +51,7 @@ export default function Footer() {
         </div>
       </div>
       <div className="max-w-[1280px] mx-auto px-6 md:px-10 py-6 border-t border-white/10 flex flex-col md:flex-row justify-between items-center opacity-70 font-body-md text-sm text-center md:text-left gap-4 md:gap-0">
-        <span>© 2024 Organic Mart. Bản quyền thuộc về chúng tôi.</span>
+        <span>© 2024 RAU NHA MINH. Bản quyền thuộc về chúng tôi.</span>
         <div className="flex gap-6 mt-2 md:mt-0">
           <span>Facebook</span>
           <span>Instagram</span>

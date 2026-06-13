@@ -218,7 +218,7 @@ export default function Home() {
             {...fadeIn}
             className="text-headline-md font-bold text-primary mb-stack-lg text-center"
           >
-            Giới thiệu ngắn về Organic Mart
+            Giới thiệu ngắn về RAU NHA MINH
           </motion.h2>
 
           <motion.div
@@ -226,7 +226,7 @@ export default function Home() {
             className="max-w-4xl mx-auto text-center text-on-surface-variant mb-6 px-4"
           >
             <p className="text-body-md leading-relaxed">
-              Organic Mart là nền tảng mua sắm trực tuyến chuyên cung cấp trái cây, rau củ và thực phẩm hữu cơ từ những nông trại được chứng nhận.
+              RAU NHA MINH là nền tảng mua sắm trực tuyến chuyên cung cấp trái cây, rau củ và thực phẩm hữu cơ từ những nông trại được chứng nhận.
               Chúng tôi cam kết đem tới sản phẩm tươi ngon, minh bạch về nguồn gốc và trải nghiệm mua sắm đơn giản, an toàn cho cả gia đình.
             </p>
             <p className="text-body-md leading-relaxed mt-3">
@@ -267,13 +267,13 @@ export default function Home() {
           </motion.div>
         </section>
 
-        {/* Vì sao nên chọn Organic Mart? */}
+        {/* Vì sao nên chọn RAU NHA MINH? */}
         <section className="py-stack-lg">
           <motion.h2
             {...fadeIn}
             className="text-headline-md font-bold text-primary mb-stack-lg text-center"
           >
-            Vì sao nên chọn Organic Mart?
+            Vì sao nên chọn RAU NHA MINH?
           </motion.h2>
           <motion.div
             variants={staggerContainer}
