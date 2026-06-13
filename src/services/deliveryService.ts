@@ -21,7 +21,7 @@ export interface AvailableSlot {
 }
 
 export const getDeliveryFees = () =>
-  apiRequest<DeliveryFee[]>('/delivery/fees', { requireAuth: false });
+  apiRequest<DeliveryFee[]>('/delivery/fees', { requireAuth: true });
 
 export const getAvailableSlots = (date: string) =>
   apiRequest<AvailableSlot[]>(`/delivery-slots/available?date=${date}`, { requireAuth: true });

@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import * as paymentService from "../src/services/paymentService.ts";
 import { createOrder, type CreateOrderRequest, type DeliveryMethod } from "../src/services/orderService.ts";
 import * as shippingProviderService from "../src/services/shippingProviderService.ts";
+import { getDeliveryFees } from "../src/services/deliveryService.ts";
 
 type CapturedCall = {
   url: string;
@@ -87,6 +88,17 @@ test("getVietQrPayment sends GET /payments/vietqr/:id with auth", async () => {
   );
   assert.equal(calls.length, 1);
   assert.equal(routeOf(calls[0].url), "/payments/vietqr/42");
+  assert.equal((calls[0].init.headers as Record<string, string>).Authorization, "Bearer access-token");
+});
+
+test("checkout delivery fees request sends bearer token because backend protects the endpoint", async () => {
+  const { calls } = await withMockApi(
+    () => getDeliveryFees(),
+    [{ deliveryMethod: "STANDARD", shippingFee: 0, estimatedMinutes: 60, estimatedTime: "60 phút" }],
+  );
+
+  assert.equal(calls.length, 1);
+  assert.equal(routeOf(calls[0].url), "/delivery/fees");
   assert.equal((calls[0].init.headers as Record<string, string>).Authorization, "Bearer access-token");
 });
 
