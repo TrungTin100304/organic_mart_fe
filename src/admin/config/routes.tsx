@@ -16,6 +16,7 @@ import {
   Clock,
   Truck,
   Landmark,
+  MessageCircle,
 } from "lucide-react";
 import Categories from "../pages/Categories";
 import Allergens from "../pages/Allergens";
@@ -32,6 +33,7 @@ import Buildings from "../pages/Buildings";
 import DeliverySlots from "../pages/DeliverySlots";
 import DeliveryOrders from "../pages/DeliveryOrders";
 import PaymentAudit from "../pages/PaymentAudit";
+import ChatInbox from "../pages/ChatInbox";
 
 export interface AdminRouteConfig {
   key: string;
@@ -54,6 +56,7 @@ export const ADMIN_ROUTE_SECTIONS = [
 
 export const ADMIN_ROUTES: AdminRouteConfig[] = [
   { key: "dashboard", index: true, to: "/admin", label: "Dashboard", group: "overview", icon: LayoutDashboard, element: <Dashboard /> },
+  { key: "chat-inbox", path: "chat-inbox", to: "/admin/chat-inbox", label: "Hỗ trợ khách hàng", group: "overview", icon: MessageCircle, element: <ChatInbox /> },
   { key: "orders", path: "orders", to: "/admin/orders", label: "Đơn hàng", group: "management", icon: ShoppingCart, element: <Orders /> },
   { key: "delivery-orders", path: "delivery-orders", to: "/admin/delivery-orders", label: "Giao nội khu", group: "management", icon: Truck, element: <DeliveryOrders /> },
   { key: "payment-audit", path: "payment-audit", to: "/admin/payment-audit", label: "Đối soát thanh toán", group: "management", icon: Landmark, element: <PaymentAudit /> },
