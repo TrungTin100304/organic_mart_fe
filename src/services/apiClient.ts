@@ -11,7 +11,7 @@ export interface ApiRequestOptions extends RequestInit {
   skipRefresh?: boolean;
 }
 
-const DEFAULT_API_BASE_URL = "https://organic-mart-be.onrender.com/api/v1";
+const DEFAULT_API_BASE_URL = "https://organic-mart-be-yilq.onrender.com/api/v1";
 let refreshPromise: Promise<boolean> | null = null;
 
 export const resolveApiBaseUrl = ({
@@ -63,6 +63,8 @@ const clearAuthStorage = () => {
     // Storage may be unavailable in tests or restricted browser contexts.
   }
 };
+
+const STALE_AUTH_SESSION_MESSAGE = "Phiên đăng nhập không còn hợp lệ. Vui lòng đăng nhập lại.";
 
 const getRefreshToken = () => {
   try {
@@ -130,6 +132,18 @@ const getInfrastructureErrorMessage = (status: number, text: string) => {
   }
 
   return null;
+};
+
+const isStaleAuthenticatedSessionError = (status: number, text: string, message: unknown) => {
+  if (status < 400) return false;
+
+  const normalizedMessage = typeof message === "string" ? message : "";
+  const normalizedText = `${text} ${normalizedMessage}`.toLowerCase();
+
+  return normalizedText.includes("user not found")
+    || normalizedText.includes("authentication required")
+    || (normalizedText.includes("userdetails") && normalizedText.includes("null"))
+    || (normalizedText.includes("customuserdetails") && normalizedText.includes("null"));
 };
 
 export const normalizeRole = (role?: string | null): Role => {
@@ -234,6 +248,10 @@ export async function apiRequest<T>(
       || payload?.error
       || payload
       || `API request failed (${response.status})`;
+    if (requireAuth && isStaleAuthenticatedSessionError(response.status, text, message)) {
+      clearAuthStorage();
+      throw new Error(STALE_AUTH_SESSION_MESSAGE);
+    }
     if (typeof window !== "undefined") {
       // eslint-disable-next-line no-console
       console.error(`[apiClient] ${response.status} ${endpoint}`, { payload, raw: text });

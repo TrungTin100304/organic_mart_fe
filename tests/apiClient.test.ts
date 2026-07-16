@@ -10,7 +10,7 @@ test("resolveApiBaseUrl keeps the relative API path in development so Vite can p
 test("resolveApiBaseUrl does not use a relative API path in production", () => {
   assert.equal(
     resolveApiBaseUrl({ baseUrl: "/api/v1", isDev: false }),
-    "https://organic-mart-be.onrender.com/api/v1",
+    "https://organic-mart-be-yilq.onrender.com/api/v1",
   );
 });
 
@@ -26,7 +26,7 @@ test("getApiBaseUrl removes trailing slashes and keeps the api version path", ()
 });
 
 test("getApiBaseUrl defaults to the deployed backend api path", () => {
-  assert.equal(getApiBaseUrl(), "https://organic-mart-be.onrender.com/api/v1");
+  assert.equal(getApiBaseUrl(), "https://organic-mart-be-yilq.onrender.com/api/v1");
 });
 
 test("normalizeRole accepts backend ROLE_* values and legacy admin values", () => {
@@ -520,6 +520,53 @@ test("a protected endpoint returning 401 after a successful refresh does not cle
     assert.equal(storage.get("accessToken"), "fresh-admin-token");
     assert.equal(storage.get("refreshToken"), "fresh-admin-refresh");
     assert.equal(storage.get("userRole"), "ROLE_ADMIN");
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalLocalStorage) {
+      Object.defineProperty(globalThis, "localStorage", originalLocalStorage);
+    } else {
+      delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+    }
+  }
+});
+
+test("a protected request clears stale auth when the backend reports the token user is missing", async () => {
+  const storage = new Map<string, string>([
+    ["accessToken", "old-render-token"],
+    ["refreshToken", "old-render-refresh"],
+    ["userRole", "ROLE_USER"],
+  ]);
+  const originalFetch = globalThis.fetch;
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => storage.get(key) ?? null,
+      setItem: (key: string, value: string) => storage.set(key, value),
+      removeItem: (key: string) => storage.delete(key),
+    },
+  });
+
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({
+      status: 500,
+      message: "Da xay ra loi tren he thong: User not found with id: 1",
+      data: null,
+    }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => apiRequest("/carts/me", { requireAuth: true }, "http://api.test/api/v1"),
+      /Phiên đăng nhập không còn hợp lệ/,
+    );
+
+    assert.equal(storage.has("accessToken"), false);
+    assert.equal(storage.has("refreshToken"), false);
+    assert.equal(storage.has("userRole"), false);
   } finally {
     globalThis.fetch = originalFetch;
     if (originalLocalStorage) {

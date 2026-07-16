@@ -39,12 +39,53 @@ export interface PagedResponse<T> {
   empty: boolean;
 }
 
+const DEFAULT_BACKEND_ORIGIN = "https://organic-mart-be-yilq.onrender.com";
+const DEFAULT_LOCAL_BACKEND_ORIGIN = "http://localhost:8080";
+const WS_CHAT_PATH = "/ws/chat";
+
+interface ResolveWsUrlOptions {
+  configuredUrl?: string;
+  proxyTarget?: string;
+  appOrigin?: string;
+  isDev?: boolean;
+}
+
+const toWsChatUrl = (origin: string) => {
+  const url = new URL(origin);
+  url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+  url.pathname = WS_CHAT_PATH;
+  url.search = "";
+  url.hash = "";
+  return url.toString();
+};
+
+export const resolveWsUrl = ({
+  configuredUrl,
+  proxyTarget,
+  appOrigin,
+  isDev = false,
+}: ResolveWsUrlOptions = {}) => {
+  const explicitUrl = configuredUrl?.trim();
+  if (explicitUrl) return explicitUrl.replace(/\/+$/, "");
+
+  const configuredProxyTarget = proxyTarget?.trim();
+  if (isDev && configuredProxyTarget) {
+    return toWsChatUrl(appOrigin || "http://localhost:3000");
+  }
+
+  return toWsChatUrl(
+    configuredProxyTarget || (isDev ? DEFAULT_LOCAL_BACKEND_ORIGIN : DEFAULT_BACKEND_ORIGIN)
+  );
+};
+
 export const getWsUrl = () => {
   const viteEnv = (import.meta as ImportMeta & { env?: Record<string, any> }).env;
-  const configuredUrl = viteEnv?.VITE_WS_URL;
-  if (configuredUrl) return configuredUrl;
-  if (viteEnv?.DEV) return "ws://localhost:8080/ws/chat";
-  return "wss://organic-mart-be.onrender.com/ws/chat";
+  return resolveWsUrl({
+    configuredUrl: viteEnv?.VITE_WS_URL,
+    proxyTarget: viteEnv?.VITE_API_PROXY_TARGET,
+    appOrigin: typeof window !== "undefined" ? window.location.origin : undefined,
+    isDev: Boolean(viteEnv?.DEV),
+  });
 };
 
 export const getAccessToken = () => {

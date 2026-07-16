@@ -7,7 +7,7 @@ export default defineConfig(({mode}) => {
   const env = loadEnv(mode, '.', '');
 
   const proxyTarget = env.VITE_API_PROXY_TARGET
-    || 'https://organic-mart-be.onrender.com';
+    || 'https://organic-mart-be-yilq.onrender.com';
 
   return {
     plugins: [react(), tailwindcss()],
@@ -29,6 +29,12 @@ export default defineConfig(({mode}) => {
           secure: true,
           rewrite: (pathStr) => pathStr,
         },
+        '/ws': {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: true,
+          ws: true,
+        },
       },
     },
     preview: {
@@ -38,6 +44,12 @@ export default defineConfig(({mode}) => {
           changeOrigin: true,
           secure: true,
           rewrite: (pathStr) => pathStr,
+        },
+        '/ws': {
+          target: proxyTarget,
+          changeOrigin: true,
+          secure: true,
+          ws: true,
         },
       },
     },
