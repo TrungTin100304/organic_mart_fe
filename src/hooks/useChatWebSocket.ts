@@ -24,8 +24,11 @@ interface UseChatWebSocketOptions {
   onError?: (error: string) => void;
 }
 
+export type ChatConnectionStatus = "connecting" | "open" | "closed" | "error";
+
 interface UseChatWebSocketReturn {
   isConnected: boolean;
+  status: ChatConnectionStatus;
   connectionError: string | null;
   sendMessage: (content: string, clientMessageId?: string) => void;
   reconnect: () => void;
@@ -63,8 +66,11 @@ export function useChatWebSocket({
   onDisconnect,
   onError,
 }: UseChatWebSocketOptions): UseChatWebSocketReturn {
-  const [isConnected, setIsConnected] = useState(false);
+  const [status, setStatus] = useState<ChatConnectionStatus>("closed");
   const [connectionError, setConnectionError] = useState<string | null>(null);
+
+  const isConnected = status === "open";
+
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -92,16 +98,36 @@ export function useChatWebSocket({
   }, []);
 
   const connect = useCallback(() => {
-    if (!enabledRef.current) return;
+    if (!enabledRef.current) {
+      setStatus("closed");
+      return;
+    }
 
     const token = getAccessToken();
     if (!token) {
-      onErrorRef.current?.("No access token available");
+      setStatus("error");
+      const msg = "Không tìm thấy accessToken. Vui lòng đăng nhập lại.";
+      setConnectionError(msg);
+      onErrorRef.current?.(msg);
       return;
     }
 
     clearReconnectTimer();
-    const wsUrl = `${getWsUrl()}?token=${encodeURIComponent(token)}`;
+
+    let wsUrl: string;
+    try {
+      wsUrl = `${getWsUrl()}?token=${encodeURIComponent(token)}`;
+    } catch (err) {
+      setStatus("error");
+      const msg = `Không thể tạo URL WebSocket: ${err instanceof Error ? err.message : String(err)}`;
+      setConnectionError(msg);
+      onErrorRef.current?.(msg);
+      return;
+    }
+
+    setStatus("connecting");
+    setConnectionError(null);
+
     const ws = new WebSocket(wsUrl);
     const socketId = socketIdRef.current + 1;
     socketIdRef.current = socketId;
@@ -109,14 +135,16 @@ export function useChatWebSocket({
     let handshakeEstablished = false;
 
     ws.onopen = () => {
+      if (socketIdRef.current !== socketId) return;
       handshakeEstablished = true;
-      setConnectionError(null);
-      setIsConnected(true);
       reconnectAttemptsRef.current = 0;
+      setStatus("open");
+      setConnectionError(null);
       onConnectRef.current?.();
     };
 
     ws.onmessage = (event) => {
+      if (socketIdRef.current !== socketId) return;
       try {
         const message: ChatSocketMessage = JSON.parse(event.data);
         const activeConversationId = conversationIdRef.current;
@@ -129,45 +157,67 @@ export function useChatWebSocket({
     };
 
     ws.onerror = () => {
+      if (socketIdRef.current !== socketId) return;
       const message = handshakeEstablished
-        ? "WebSocket connection error"
-        : "WebSocket handshake failed. Kiểm tra cấu hình backend hoặc trạng thái Render service.";
+        ? "Mất kết nối WebSocket giữa chừng."
+        : "Không thể kết nối tới máy chủ chat. Kiểm tra cấu hình backend hoặc trạng thái Render service.";
       setConnectionError(message);
       onErrorRef.current?.(message);
     };
 
     ws.onclose = (event) => {
       const isCurrentSocket = wsRef.current === ws && socketIdRef.current === socketId;
+      const intentionallyClosed = intentionallyClosedSocketIdsRef.current.has(socketId) || !isCurrentSocket;
+      intentionallyClosedSocketIdsRef.current.delete(socketId);
+
       if (isCurrentSocket) {
         wsRef.current = null;
       }
 
-      setIsConnected(false);
-      onDisconnectRef.current?.();
+      if (!isCurrentSocket) return;
 
-      const intentionallyClosed = intentionallyClosedSocketIdsRef.current.has(socketId) || !isCurrentSocket;
-      intentionallyClosedSocketIdsRef.current.delete(socketId);
-
-      if (!handshakeEstablished && !intentionallyClosed) {
-        const message = `WebSocket đóng trước khi kết nối được thiết lập (code=${event.code}). Không thử lại tự động.`;
-        setConnectionError(message);
-        onErrorRef.current?.(message);
-        return;
-      }
-
-      if (shouldReconnectChatSocket({
+      const shouldReportError = !handshakeEstablished && !intentionallyClosed;
+      const shouldReconnect = shouldReconnectChatSocket({
         enabled: enabledRef.current,
         intentionallyClosed,
         attempts: reconnectAttemptsRef.current,
         maxAttempts: MAX_RECONNECT_ATTEMPTS,
         handshakeEstablished,
-      })) {
+      });
+
+      if (shouldReportError) {
+        const message = `WebSocket đóng trước khi kết nối được thiết lập (code=${event.code}). ${
+          event.code === 1006 ? "Có thể do CORS, sai token, hoặc backend từ chối." :
+          event.code === 1002 ? "Giao thức không hợp lệ." :
+          event.code === 1015 ? "TLS handshake thất bại." :
+          ""
+        }`;
+        setStatus("error");
+        setConnectionError(message);
+        onErrorRef.current?.(message);
+        onDisconnectRef.current?.();
+        return;
+      }
+
+      if (intentionallyClosed) {
+        setStatus("closed");
+        onDisconnectRef.current?.();
+        return;
+      }
+
+      if (shouldReconnect) {
+        setStatus("connecting");
+        onDisconnectRef.current?.();
         const delay = BASE_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttemptsRef.current);
         reconnectTimeoutRef.current = setTimeout(() => {
           reconnectAttemptsRef.current++;
           connect();
         }, delay);
+        return;
       }
+
+      setStatus("closed");
+      onDisconnectRef.current?.();
     };
   }, [clearReconnectTimer]);
 
@@ -177,9 +227,13 @@ export function useChatWebSocket({
     if (ws) {
       intentionallyClosedSocketIdsRef.current.add(socketIdRef.current);
       wsRef.current = null;
-      ws.close();
+      try {
+        ws.close();
+      } catch {
+        // Socket may already be in a closing state.
+      }
     }
-    setIsConnected(false);
+    setStatus("closed");
   }, [clearReconnectTimer]);
 
   useEffect(() => {
@@ -197,16 +251,21 @@ export function useChatWebSocket({
 
   const sendMessage = useCallback(
     (content: string, clientMessageId?: string) => {
-      if (wsRef.current && wsRef.current.readyState === WebSocket.OPEN && conversationId) {
-        const message = {
-          type: "CHAT_MESSAGE",
-          conversationId,
-          content,
-          clientMessageId: clientMessageId || crypto.randomUUID(),
-          sentAt: new Date().toISOString(),
-        };
-        wsRef.current.send(JSON.stringify(message));
+      const ws = wsRef.current;
+      if (!ws || ws.readyState !== WebSocket.OPEN) {
+        throw new Error("WebSocket chưa sẵn sàng");
       }
+      if (!conversationId) {
+        throw new Error("Thiếu conversationId");
+      }
+      const message = {
+        type: "CHAT_MESSAGE",
+        conversationId,
+        content,
+        clientMessageId: clientMessageId || crypto.randomUUID(),
+        sentAt: new Date().toISOString(),
+      };
+      ws.send(JSON.stringify(message));
     },
     [conversationId]
   );
@@ -219,11 +278,14 @@ export function useChatWebSocket({
   const reconnect = useCallback(() => {
     reconnectAttemptsRef.current = 0;
     closeSocket();
-    connect();
+    if (enabledRef.current) {
+      connect();
+    }
   }, [closeSocket, connect]);
 
   return {
     isConnected,
+    status,
     connectionError,
     sendMessage,
     reconnect,

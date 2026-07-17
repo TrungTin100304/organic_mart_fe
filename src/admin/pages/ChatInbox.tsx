@@ -25,6 +25,7 @@ export default function ChatInbox() {
   const [inputValue, setInputValue] = useState("");
   const [isSending, setIsSending] = useState(false);
   const [processingId, setProcessingId] = useState<number | null>(null);
+  const [sendError, setSendError] = useState<string | null>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
 
   const handleNewMessage = useCallback((msg: ChatSocketMessage) => {
@@ -60,7 +61,7 @@ export default function ChatInbox() {
     }
   }, []);
 
-  const { isConnected, connectionError, sendMessage: wsSendMessage, reconnect } = useChatWebSocket({
+  const { isConnected, status, connectionError, sendMessage: wsSendMessage, reconnect } = useChatWebSocket({
     conversationId: selectedConversation?.id,
     onMessage: handleNewMessage,
   });
@@ -136,6 +137,8 @@ export default function ChatInbox() {
     } catch (e) {
       setMessages((prev) => prev.filter((m) => m.clientMessageId !== tempId));
       setInputValue(content);
+      const errorMessage = e instanceof Error ? e.message : "Không thể gửi tin nhắn.";
+      setSendError(errorMessage);
     } finally {
       setIsSending(false);
     }
@@ -238,15 +241,26 @@ export default function ChatInbox() {
             <div className="flex items-center gap-1">
               <span
                 className={`w-2 h-2 rounded-full ${
-                  isConnected ? "bg-green-500" :
-                  connectionError ? "bg-red-500" : "bg-yellow-500"
+                  status === "open"
+                    ? "bg-green-500 animate-pulse"
+                    : status === "connecting"
+                    ? "bg-yellow-500 animate-pulse"
+                    : status === "error"
+                    ? "bg-red-500"
+                    : "bg-gray-400"
                 }`}
                 title={connectionError || undefined}
               />
               <span className="text-xs text-on-surface-variant">
-                {isConnected ? "Online" : connectionError ? "Lỗi kết nối" : "Offline"}
+                {status === "open"
+                  ? "Online"
+                  : status === "connecting"
+                  ? "Đang kết nối..."
+                  : status === "error"
+                  ? "Lỗi kết nối"
+                  : "Offline"}
               </span>
-              {!isConnected && (
+              {(status === "error" || status === "closed") && (
                 <button
                   type="button"
                   onClick={() => reconnect()}
@@ -339,16 +353,16 @@ export default function ChatInbox() {
       <div className="flex-1 flex flex-col bg-surface-container-lowest">
         {selectedConversation ? (
           <>
-            {connectionError && (
+            {connectionError && status !== "open" && (
               <div className="flex items-center justify-between gap-3 px-6 py-2.5 bg-red-50 border-b border-red-200">
                 <div className="flex items-center gap-2 text-xs text-red-700">
                   <span className="material-symbols-outlined text-base">error</span>
-                  <span>Mất kết nối WebSocket: {connectionError}</span>
+                  <span className="truncate">{connectionError}</span>
                 </div>
                 <button
                   type="button"
                   onClick={() => reconnect()}
-                  className="px-3 py-1 text-xs font-medium bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+                  className="flex-shrink-0 px-3 py-1 text-xs font-medium bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
                 >
                   Kết nối lại
                 </button>
@@ -481,26 +495,51 @@ export default function ChatInbox() {
                 </div>
               ) : (
                 <div className="space-y-2">
-                  {!isConnected && (
+                  {sendError && (
+                    <div className="flex items-center justify-between gap-2 px-3 py-1.5 bg-red-50 border border-red-200 rounded-lg">
+                      <span className="text-xs text-red-700">{sendError}</span>
+                      <button
+                        type="button"
+                        onClick={() => setSendError(null)}
+                        className="text-red-700 hover:text-red-900"
+                      >
+                        <X className="w-3.5 h-3.5" />
+                      </button>
+                    </div>
+                  )}
+                  {status !== "open" && (
                     <div className="flex items-center justify-center gap-2 text-xs text-on-surface-variant">
                       <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
-                      Đang kết nối lại với máy chủ...
+                      {status === "connecting"
+                        ? "Đang kết nối tới máy chủ chat..."
+                        : status === "error"
+                        ? "Mất kết nối. Nhấn 'Kết nối lại' ở trên."
+                        : "Đang đóng kết nối..."}
                     </div>
                   )}
                   <div className="flex items-center gap-3">
                     <input
                       type="text"
                       value={inputValue}
-                      onChange={(e) => setInputValue(e.target.value)}
+                      onChange={(e) => {
+                        setInputValue(e.target.value);
+                        if (sendError) setSendError(null);
+                      }}
                       onKeyDown={handleKeyDown}
-                      placeholder={isConnected ? "Nhập tin nhắn..." : "Đang kết nối..."}
-                      disabled={isSending || !isConnected}
-                      className="flex-1 px-4 py-3 bg-surface-container rounded-full text-sm border border-outline/20 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all disabled:opacity-50"
+                      placeholder={
+                        status === "open"
+                          ? "Nhập tin nhắn..."
+                          : status === "connecting"
+                          ? "Đang kết nối..."
+                          : "Chưa kết nối - không thể gửi"
+                      }
+                      disabled={isSending || status !== "open"}
+                      className="flex-1 px-4 py-3 bg-surface-container rounded-full text-sm border border-outline/20 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <button
                       onClick={() => void handleSend()}
-                      disabled={!inputValue.trim() || isSending || !isConnected}
-                      className="w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50"
+                      disabled={!inputValue.trim() || isSending || status !== "open"}
+                      className="w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSending ? (
                         <LoaderCircle className="w-5 h-5 animate-spin" />
