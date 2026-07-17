@@ -35,6 +35,7 @@ interface ReconnectDecision {
   intentionallyClosed: boolean;
   attempts: number;
   maxAttempts: number;
+  handshakeEstablished: boolean;
 }
 
 const MAX_RECONNECT_ATTEMPTS = 5;
@@ -45,7 +46,12 @@ export const shouldReconnectChatSocket = ({
   intentionallyClosed,
   attempts,
   maxAttempts,
-}: ReconnectDecision) => enabled && !intentionallyClosed && attempts < maxAttempts;
+  handshakeEstablished,
+}: ReconnectDecision) =>
+  enabled
+  && !intentionallyClosed
+  && handshakeEstablished
+  && attempts < maxAttempts;
 
 export function useChatWebSocket({
   conversationId,
@@ -97,8 +103,10 @@ export function useChatWebSocket({
     const socketId = socketIdRef.current + 1;
     socketIdRef.current = socketId;
     wsRef.current = ws;
+    let handshakeEstablished = false;
 
     ws.onopen = () => {
+      handshakeEstablished = true;
       setIsConnected(true);
       reconnectAttemptsRef.current = 0;
       onConnectRef.current?.();
@@ -117,10 +125,14 @@ export function useChatWebSocket({
     };
 
     ws.onerror = () => {
-      onErrorRef.current?.("WebSocket connection error");
+      onErrorRef.current?.(
+        handshakeEstablished
+          ? "WebSocket connection error"
+          : "WebSocket handshake failed. Kiểm tra cấu hình backend hoặc trạng thái Render service."
+      );
     };
 
-    ws.onclose = () => {
+    ws.onclose = (event) => {
       const isCurrentSocket = wsRef.current === ws && socketIdRef.current === socketId;
       if (isCurrentSocket) {
         wsRef.current = null;
@@ -132,11 +144,19 @@ export function useChatWebSocket({
       const intentionallyClosed = intentionallyClosedSocketIdsRef.current.has(socketId) || !isCurrentSocket;
       intentionallyClosedSocketIdsRef.current.delete(socketId);
 
+      if (!handshakeEstablished && !intentionallyClosed) {
+        onErrorRef.current?.(
+          `WebSocket đóng trước khi kết nối được thiết lập (code=${event.code}). Không thử lại tự động.`
+        );
+        return;
+      }
+
       if (shouldReconnectChatSocket({
         enabled: enabledRef.current,
         intentionallyClosed,
         attempts: reconnectAttemptsRef.current,
         maxAttempts: MAX_RECONNECT_ATTEMPTS,
+        handshakeEstablished,
       })) {
         const delay = BASE_RECONNECT_DELAY_MS * Math.pow(2, reconnectAttemptsRef.current);
         reconnectTimeoutRef.current = setTimeout(() => {

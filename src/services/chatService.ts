@@ -1,6 +1,20 @@
 import { ApiRequestError, apiRequest } from "./apiClient";
 import type { ApiResponse } from "./apiClient";
 
+const TRANSIENT_CONVERSATION_ERROR_STATUSES = new Set([0, 408, 425, 429, 500, 502, 503, 504]);
+
+export const shouldFallbackToCreateConversation = (
+  error: unknown
+): boolean => {
+  if (!(error instanceof ApiRequestError)) {
+    return true;
+  }
+
+  if (error.status === 404) return false;
+
+  return TRANSIENT_CONVERSATION_ERROR_STATUSES.has(error.status);
+};
+
 export type ChatConversationStatus = "OPEN" | "CLOSED";
 export type ChatMessageSenderRole = "USER" | "ADMIN" | "SYSTEM";
 export type ChatMessageStatus = "SENT" | "READ";
@@ -112,8 +126,14 @@ const getCurrentConversation = async (): Promise<ChatConversation | null> => {
 
 export const chatService = {
   getOrCreateConversation: async (): Promise<ChatConversation> => {
-    const existingConversation = await getCurrentConversation();
-    if (existingConversation) return existingConversation;
+    try {
+      const existingConversation = await getCurrentConversation();
+      if (existingConversation) return existingConversation;
+    } catch (error) {
+      if (!shouldFallbackToCreateConversation(error)) {
+        throw error;
+      }
+    }
 
     return apiRequest<ChatConversation>("/chat/conversations", {
       method: "POST",

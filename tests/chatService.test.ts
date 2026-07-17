@@ -112,36 +112,125 @@ test("getOrCreateConversation creates a conversation when none exists yet", asyn
   }
 });
 
-test("getOrCreateConversation does not post when checking the current conversation fails", async () => {
+test("getOrCreateConversation falls back to POST when GET /me returns a transient server error", async () => {
   const restoreStorage = installAuthStorage();
   const originalFetch = globalThis.fetch;
   const calls: Array<{ url: string; init: RequestInit }> = [];
 
   globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
     calls.push({ url: String(url), init: init ?? {} });
-    return new Response(JSON.stringify({
-      status: 500,
-      message: "Da xay ra loi tren he thong: cannot execute INSERT in a read-only transaction",
-      data: null,
-    }), {
-      status: 500,
+    const requestUrl = String(url);
+    if (requestUrl.endsWith("/chat/conversations/me")) {
+      return new Response(JSON.stringify({
+        status: 500,
+        message: "Da xay ra loi tren he thong: cannot execute INSERT in a read-only transaction",
+        data: null,
+      }), {
+        status: 500,
+        headers: { "Content-Type": "application/json" },
+      });
+    }
+
+    return new Response(JSON.stringify({ status: 200, message: "OK", data: conversation }), {
+      status: 200,
       headers: { "Content-Type": "application/json" },
     });
   }) as typeof fetch;
 
   try {
     const chatModule = await import("../src/services/chatService.ts");
+    const result = await chatModule.chatService.getOrCreateConversation();
 
-    await assert.rejects(
-      () => chatModule.chatService.getOrCreateConversation(),
-      /read-only transaction/,
-    );
-
-    assert.equal(calls.length, 1);
+    assert.deepEqual(result, conversation);
+    assert.equal(calls.length, 2);
     assert.equal(routeOf(calls[0].url), "/chat/conversations/me");
-    assert.equal(calls[0].init.method ?? "GET", "GET");
+    assert.equal(routeOf(calls[1].url), "/chat/conversations");
+    assert.equal(calls[1].init.method, "POST");
   } finally {
     globalThis.fetch = originalFetch;
     restoreStorage();
   }
+});
+
+test("getOrCreateConversation falls back to POST on 503 and 502 transient gateway errors", async () => {
+  for (const transientStatus of [502, 503, 504]) {
+    const restoreStorage = installAuthStorage();
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init: init ?? {} });
+      const requestUrl = String(url);
+      if (requestUrl.endsWith("/chat/conversations/me")) {
+        return new Response(JSON.stringify({
+          status: transientStatus,
+          message: "upstream unavailable",
+          data: null,
+        }), {
+          status: transientStatus,
+          headers: { "Content-Type": "application/json" },
+        });
+      }
+
+      return new Response(JSON.stringify({ status: 200, message: "OK", data: conversation }), {
+        status: 200,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    try {
+      const chatModule = await import("../src/services/chatService.ts");
+      const result = await chatModule.chatService.getOrCreateConversation();
+
+      assert.deepEqual(result, conversation, `status ${transientStatus}`);
+      assert.equal(calls.length, 2, `status ${transientStatus}`);
+      assert.equal(calls[1].init.method, "POST", `status ${transientStatus}`);
+    } finally {
+      globalThis.fetch = originalFetch;
+      restoreStorage();
+    }
+  }
+});
+
+test("getOrCreateConversation does not fall back when GET /me returns a client error", async () => {
+  for (const clientStatus of [400, 401, 403]) {
+    const restoreStorage = installAuthStorage();
+    const originalFetch = globalThis.fetch;
+    const calls: Array<{ url: string; init: RequestInit }> = [];
+
+    globalThis.fetch = (async (url: string | URL | Request, init?: RequestInit) => {
+      calls.push({ url: String(url), init: init ?? {} });
+      return new Response(JSON.stringify({
+        status: clientStatus,
+        message: "client error",
+        data: null,
+      }), {
+        status: clientStatus,
+        headers: { "Content-Type": "application/json" },
+      });
+    }) as typeof fetch;
+
+    try {
+      const chatModule = await import("../src/services/chatService.ts");
+
+      await assert.rejects(
+        () => chatModule.chatService.getOrCreateConversation(),
+        /client error/,
+      );
+
+      assert.equal(calls.length, 1, `status ${clientStatus}`);
+      assert.equal(routeOf(calls[0].url), "/chat/conversations/me");
+    } finally {
+      globalThis.fetch = originalFetch;
+      restoreStorage();
+    }
+  }
+});
+
+test("shouldFallbackToCreateConversation returns true for non-ApiRequestError network failures", () => {
+  const chatModulePromise = import("../src/services/chatService.ts");
+  return chatModulePromise.then(({ shouldFallbackToCreateConversation }) => {
+    assert.equal(shouldFallbackToCreateConversation(new Error("Network error")), true);
+    assert.equal(shouldFallbackToCreateConversation(new TypeError("Failed to fetch")), true);
+  });
 });
