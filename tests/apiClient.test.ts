@@ -119,6 +119,45 @@ test("apiRequest hides Gemini quota details behind a helpful message", async () 
   }
 });
 
+test("apiRequest explains backend read-only database transaction errors", async () => {
+  const originalFetch = globalThis.fetch;
+  const originalLocalStorage = Object.getOwnPropertyDescriptor(globalThis, "localStorage");
+
+  Object.defineProperty(globalThis, "localStorage", {
+    configurable: true,
+    value: {
+      getItem: (key: string) => (key === "accessToken" ? "access-token" : null),
+      removeItem: () => undefined,
+    },
+  });
+
+  globalThis.fetch = (async () =>
+    new Response(JSON.stringify({
+      status: 500,
+      message: "Da xay ra loi tren he thong: could not execute statement [ERROR: cannot execute INSERT in a read-only transaction] [insert into chat_conversations (created_at,last_message_at,status,updated_at,user_id) values (?,?,?,?,?)]",
+      data: null,
+    }), {
+      status: 500,
+      headers: { "Content-Type": "application/json" },
+    })) as typeof fetch;
+
+  try {
+    await assert.rejects(
+      () => apiRequest("/chat/conversations/me", { requireAuth: true }, "http://api.test/api/v1"),
+      {
+        message: "Dịch vụ chat backend đang chạy trong transaction hoặc database read-only. Vui lòng kiểm tra cấu hình backend cho chat_conversations.",
+      },
+    );
+  } finally {
+    globalThis.fetch = originalFetch;
+    if (originalLocalStorage) {
+      Object.defineProperty(globalThis, "localStorage", originalLocalStorage);
+    } else {
+      delete (globalThis as typeof globalThis & { localStorage?: Storage }).localStorage;
+    }
+  }
+});
+
 test("apiRequest refreshes an expired access token once and retries the original request", async () => {
   const calls: Array<{ url: string; init: RequestInit }> = [];
   const storage = new Map<string, string>([

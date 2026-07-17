@@ -1,4 +1,4 @@
-import { apiRequest } from "./apiClient";
+import { ApiRequestError, apiRequest } from "./apiClient";
 import type { ApiResponse } from "./apiClient";
 
 export type ChatConversationStatus = "OPEN" | "CLOSED";
@@ -96,23 +96,32 @@ export const getAccessToken = () => {
   }
 };
 
+const getCurrentConversation = async (): Promise<ChatConversation | null> => {
+  try {
+    return await apiRequest<ChatConversation>("/chat/conversations/me", {
+      requireAuth: true,
+    });
+  } catch (error) {
+    if (error instanceof ApiRequestError && error.status === 404) {
+      return null;
+    }
+
+    throw error;
+  }
+};
+
 export const chatService = {
   getOrCreateConversation: async (): Promise<ChatConversation> => {
+    const existingConversation = await getCurrentConversation();
+    if (existingConversation) return existingConversation;
+
     return apiRequest<ChatConversation>("/chat/conversations", {
       method: "POST",
       requireAuth: true,
     });
   },
 
-  getMyConversation: async (): Promise<ChatConversation | null> => {
-    try {
-      return await apiRequest<ChatConversation>("/chat/conversations/me", {
-        requireAuth: true,
-      });
-    } catch {
-      return null;
-    }
-  },
+  getMyConversation: getCurrentConversation,
 
   getMessages: async (
     conversationId: number,

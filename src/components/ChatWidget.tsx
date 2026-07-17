@@ -42,6 +42,7 @@ export default function ChatWidget({ isOpen, onClose }: ChatWidgetProps) {
 
   const { isConnected, sendMessage: wsSendMessage } = useChatWebSocket({
     conversationId: conversation?.id,
+    enabled: isOpen && Boolean(conversation?.id),
     onMessage: handleNewMessage,
     onError: (err) => setError(err),
   });

@@ -11,6 +11,20 @@ export interface ApiRequestOptions extends RequestInit {
   skipRefresh?: boolean;
 }
 
+export class ApiRequestError extends Error {
+  status: number;
+  payload: unknown;
+  raw: string;
+
+  constructor(message: string, status: number, payload: unknown, raw: string) {
+    super(message);
+    this.name = "ApiRequestError";
+    this.status = status;
+    this.payload = payload;
+    this.raw = raw;
+  }
+}
+
 const DEFAULT_API_BASE_URL = "https://organic-mart-be-yilq.onrender.com/api/v1";
 let refreshPromise: Promise<boolean> | null = null;
 
@@ -129,6 +143,14 @@ const getInfrastructureErrorMessage = (status: number, text: string) => {
 
   if (status === 503) {
     return "Backend hiện không khả dụng (503). Vui lòng kiểm tra trạng thái service trên Render.";
+  }
+
+  if (
+    status === 500
+    && normalizedText.includes("cannot execute insert in a read-only transaction")
+    && normalizedText.includes("chat_conversations")
+  ) {
+    return "Dịch vụ chat backend đang chạy trong transaction hoặc database read-only. Vui lòng kiểm tra cấu hình backend cho chat_conversations.";
   }
 
   return null;
@@ -256,7 +278,12 @@ export async function apiRequest<T>(
       // eslint-disable-next-line no-console
       console.error(`[apiClient] ${response.status} ${endpoint}`, { payload, raw: text });
     }
-    throw new Error(typeof message === "string" ? message : `API request failed (${response.status})`);
+    throw new ApiRequestError(
+      typeof message === "string" ? message : `API request failed (${response.status})`,
+      response.status,
+      payload,
+      text,
+    );
   }
 
   if (payload && typeof payload === "object" && "data" in payload) {
