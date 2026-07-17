@@ -62,7 +62,6 @@ export default function ChatInbox() {
 
   const { isConnected, sendMessage: wsSendMessage } = useChatWebSocket({
     conversationId: selectedConversation?.id,
-    enabled: Boolean(selectedConversation),
     onMessage: handleNewMessage,
   });
 
