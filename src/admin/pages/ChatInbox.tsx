@@ -60,7 +60,7 @@ export default function ChatInbox() {
     }
   }, []);
 
-  const { isConnected, sendMessage: wsSendMessage } = useChatWebSocket({
+  const { isConnected, connectionError, sendMessage: wsSendMessage, reconnect } = useChatWebSocket({
     conversationId: selectedConversation?.id,
     onMessage: handleNewMessage,
   });
@@ -237,11 +237,25 @@ export default function ChatInbox() {
             <h2 className="font-bold text-on-surface">Hội thoại hỗ trợ</h2>
             <div className="flex items-center gap-1">
               <span
-                className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-500" : "bg-yellow-500"}`}
+                className={`w-2 h-2 rounded-full ${
+                  isConnected ? "bg-green-500" :
+                  connectionError ? "bg-red-500" : "bg-yellow-500"
+                }`}
+                title={connectionError || undefined}
               />
               <span className="text-xs text-on-surface-variant">
-                {isConnected ? "Online" : "Offline"}
+                {isConnected ? "Online" : connectionError ? "Lỗi kết nối" : "Offline"}
               </span>
+              {!isConnected && (
+                <button
+                  type="button"
+                  onClick={() => reconnect()}
+                  className="ml-2 px-2 py-0.5 text-[10px] font-medium bg-primary/10 text-primary rounded-full hover:bg-primary/20 transition-colors"
+                  title={connectionError || "Thử kết nối lại"}
+                >
+                  Thử lại
+                </button>
+              )}
             </div>
           </div>
           <div className="flex items-center bg-surface-container rounded-lg px-3 py-2">
@@ -325,6 +339,21 @@ export default function ChatInbox() {
       <div className="flex-1 flex flex-col bg-surface-container-lowest">
         {selectedConversation ? (
           <>
+            {connectionError && (
+              <div className="flex items-center justify-between gap-3 px-6 py-2.5 bg-red-50 border-b border-red-200">
+                <div className="flex items-center gap-2 text-xs text-red-700">
+                  <span className="material-symbols-outlined text-base">error</span>
+                  <span>Mất kết nối WebSocket: {connectionError}</span>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => reconnect()}
+                  className="px-3 py-1 text-xs font-medium bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+                >
+                  Kết nối lại
+                </button>
+              </div>
+            )}
             {/* Chat Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-outline-variant/20 bg-surface">
               <div>

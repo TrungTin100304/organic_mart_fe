@@ -26,7 +26,9 @@ interface UseChatWebSocketOptions {
 
 interface UseChatWebSocketReturn {
   isConnected: boolean;
+  connectionError: string | null;
   sendMessage: (content: string, clientMessageId?: string) => void;
+  reconnect: () => void;
   disconnect: () => void;
 }
 
@@ -62,6 +64,7 @@ export function useChatWebSocket({
   onError,
 }: UseChatWebSocketOptions): UseChatWebSocketReturn {
   const [isConnected, setIsConnected] = useState(false);
+  const [connectionError, setConnectionError] = useState<string | null>(null);
   const wsRef = useRef<WebSocket | null>(null);
   const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const reconnectAttemptsRef = useRef(0);
@@ -107,6 +110,7 @@ export function useChatWebSocket({
 
     ws.onopen = () => {
       handshakeEstablished = true;
+      setConnectionError(null);
       setIsConnected(true);
       reconnectAttemptsRef.current = 0;
       onConnectRef.current?.();
@@ -125,11 +129,11 @@ export function useChatWebSocket({
     };
 
     ws.onerror = () => {
-      onErrorRef.current?.(
-        handshakeEstablished
-          ? "WebSocket connection error"
-          : "WebSocket handshake failed. Kiểm tra cấu hình backend hoặc trạng thái Render service."
-      );
+      const message = handshakeEstablished
+        ? "WebSocket connection error"
+        : "WebSocket handshake failed. Kiểm tra cấu hình backend hoặc trạng thái Render service.";
+      setConnectionError(message);
+      onErrorRef.current?.(message);
     };
 
     ws.onclose = (event) => {
@@ -145,9 +149,9 @@ export function useChatWebSocket({
       intentionallyClosedSocketIdsRef.current.delete(socketId);
 
       if (!handshakeEstablished && !intentionallyClosed) {
-        onErrorRef.current?.(
-          `WebSocket đóng trước khi kết nối được thiết lập (code=${event.code}). Không thử lại tự động.`
-        );
+        const message = `WebSocket đóng trước khi kết nối được thiết lập (code=${event.code}). Không thử lại tự động.`;
+        setConnectionError(message);
+        onErrorRef.current?.(message);
         return;
       }
 
@@ -212,9 +216,17 @@ export function useChatWebSocket({
     closeSocket();
   }, [closeSocket]);
 
+  const reconnect = useCallback(() => {
+    reconnectAttemptsRef.current = 0;
+    closeSocket();
+    connect();
+  }, [closeSocket, connect]);
+
   return {
     isConnected,
+    connectionError,
     sendMessage,
+    reconnect,
     disconnect,
   };
 }
