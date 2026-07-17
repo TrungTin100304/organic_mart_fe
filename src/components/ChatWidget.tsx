@@ -3,6 +3,12 @@ import { motion, AnimatePresence } from "motion/react";
 import { useChatWebSocket, type ChatSocketMessage } from "@/hooks/useChatWebSocket";
 import { chatService, type ChatConversation, type ChatMessage } from "@/services/chatService";
 
+const getMessageTimestamp = (msg: ChatMessage) =>
+  new Date(msg.createdAt ?? 0).getTime() || 0;
+
+export const sortMessagesChronologically = (messages: ChatMessage[]) =>
+  [...messages].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
+
 interface ChatWidgetProps {
   isOpen: boolean;
   onClose: () => void;
@@ -56,7 +62,7 @@ export default function ChatWidget({ isOpen, onClose }: ChatWidgetProps) {
         setConversation(conv);
 
         const msgs = await chatService.getMessages(conv.id, 0, 50);
-        setMessages(msgs.content.reverse());
+        setMessages(sortMessagesChronologically(msgs.content));
 
         if (conv.status === "OPEN") {
           await chatService.markAsRead(conv.id);

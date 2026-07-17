@@ -6,6 +6,12 @@ import { chatService, type ChatConversation, type ChatMessage } from "@/services
 
 type StatusFilter = "" | "OPEN" | "CLOSED";
 
+export const getMessageTimestamp = (msg: ChatMessage) =>
+  new Date(msg.createdAt ?? 0).getTime() || 0;
+
+export const sortMessagesChronologically = (messages: ChatMessage[]) =>
+  [...messages].sort((a, b) => getMessageTimestamp(a) - getMessageTimestamp(b));
+
 export default function ChatInbox() {
   const [conversations, setConversations] = useState<ChatConversation[]>([]);
   const [selectedConversation, setSelectedConversation] = useState<ChatConversation | null>(null);
@@ -91,7 +97,7 @@ export default function ChatInbox() {
     setMessages([]);
     try {
       const result = await chatService.getAdminMessages(conv.id, 0, 50);
-      setMessages(result.content.reverse());
+      setMessages(sortMessagesChronologically(result.content));
       await chatService.adminMarkAsRead(conv.id);
     } catch (err) {
       console.error("Failed to load messages:", err);
