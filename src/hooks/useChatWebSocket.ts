@@ -30,6 +30,7 @@ interface UseChatWebSocketReturn {
   isConnected: boolean;
   status: ChatConnectionStatus;
   connectionError: string | null;
+  wsUrl: string | null;
   sendMessage: (content: string, clientMessageId?: string) => void;
   reconnect: () => void;
   disconnect: () => void;
@@ -45,6 +46,7 @@ interface ReconnectDecision {
 
 const MAX_RECONNECT_ATTEMPTS = 5;
 const BASE_RECONNECT_DELAY_MS = 1000;
+const CONNECT_TIMEOUT_MS = 15000;
 
 export const shouldReconnectChatSocket = ({
   enabled,
@@ -68,6 +70,7 @@ export function useChatWebSocket({
 }: UseChatWebSocketOptions): UseChatWebSocketReturn {
   const [status, setStatus] = useState<ChatConnectionStatus>("closed");
   const [connectionError, setConnectionError] = useState<string | null>(null);
+  const [currentWsUrl, setCurrentWsUrl] = useState<string | null>(null);
 
   const isConnected = status === "open";
 
@@ -127,6 +130,7 @@ export function useChatWebSocket({
 
     setStatus("connecting");
     setConnectionError(null);
+    setCurrentWsUrl(wsUrl.replace(/\?token=.*/, "?token=***"));
 
     const ws = new WebSocket(wsUrl);
     const socketId = socketIdRef.current + 1;
@@ -134,8 +138,33 @@ export function useChatWebSocket({
     wsRef.current = ws;
     let handshakeEstablished = false;
 
+    // Surface the URL to console so misconfigured VITE_WS_URL is visible during debugging.
+    if (typeof window !== "undefined") {
+      try {
+        const sanitized = wsUrl.replace(/token=[^&]+/, "token=***");
+        // eslint-disable-next-line no-console
+        console.info("[useChatWebSocket] connecting to", sanitized);
+      } catch {
+        // noop
+      }
+    }
+
+    const connectTimeoutId = window.setTimeout(() => {
+      if (socketIdRef.current !== socketId || handshakeEstablished) return;
+      const msg = `Không nhận được phản hồi từ máy chủ chat sau ${CONNECT_TIMEOUT_MS / 1000}s. Có thể URL backend sai hoặc service không hoạt động.`;
+      setStatus("error");
+      setConnectionError(msg);
+      onErrorRef.current?.(msg);
+      try {
+        ws.close();
+      } catch {
+        // ignore
+      }
+    }, CONNECT_TIMEOUT_MS);
+
     ws.onopen = () => {
       if (socketIdRef.current !== socketId) return;
+      window.clearTimeout(connectTimeoutId);
       handshakeEstablished = true;
       reconnectAttemptsRef.current = 0;
       setStatus("open");
@@ -158,6 +187,7 @@ export function useChatWebSocket({
 
     ws.onerror = () => {
       if (socketIdRef.current !== socketId) return;
+      window.clearTimeout(connectTimeoutId);
       const message = handshakeEstablished
         ? "Mất kết nối WebSocket giữa chừng."
         : "Không thể kết nối tới máy chủ chat. Kiểm tra cấu hình backend hoặc trạng thái Render service.";
@@ -166,6 +196,9 @@ export function useChatWebSocket({
     };
 
     ws.onclose = (event) => {
+      if (socketIdRef.current === socketId) {
+        window.clearTimeout(connectTimeoutId);
+      }
       const isCurrentSocket = wsRef.current === ws && socketIdRef.current === socketId;
       const intentionallyClosed = intentionallyClosedSocketIdsRef.current.has(socketId) || !isCurrentSocket;
       intentionallyClosedSocketIdsRef.current.delete(socketId);
@@ -187,7 +220,7 @@ export function useChatWebSocket({
 
       if (shouldReportError) {
         const message = `WebSocket đóng trước khi kết nối được thiết lập (code=${event.code}). ${
-          event.code === 1006 ? "Có thể do CORS, sai token, hoặc backend từ chối." :
+          event.code === 1006 ? "Có thể do URL backend sai (kiểm tra VITE_WS_URL), CORS, sai token, hoặc backend từ chối." :
           event.code === 1002 ? "Giao thức không hợp lệ." :
           event.code === 1015 ? "TLS handshake thất bại." :
           ""
@@ -287,6 +320,7 @@ export function useChatWebSocket({
     isConnected,
     status,
     connectionError,
+    wsUrl: currentWsUrl,
     sendMessage,
     reconnect,
     disconnect,

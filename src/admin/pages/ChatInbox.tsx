@@ -61,7 +61,7 @@ export default function ChatInbox() {
     }
   }, []);
 
-  const { isConnected, status, connectionError, sendMessage: wsSendMessage, reconnect } = useChatWebSocket({
+  const { isConnected, status, connectionError, wsUrl, sendMessage: wsSendMessage, reconnect } = useChatWebSocket({
     conversationId: selectedConversation?.id,
     onMessage: handleNewMessage,
   });
@@ -354,18 +354,25 @@ export default function ChatInbox() {
         {selectedConversation ? (
           <>
             {connectionError && status !== "open" && (
-              <div className="flex items-center justify-between gap-3 px-6 py-2.5 bg-red-50 border-b border-red-200">
-                <div className="flex items-center gap-2 text-xs text-red-700">
-                  <span className="material-symbols-outlined text-base">error</span>
-                  <span className="truncate">{connectionError}</span>
+              <div className="px-6 py-3 bg-red-50 border-b border-red-200 space-y-1.5">
+                <div className="flex items-center justify-between gap-3">
+                  <div className="flex items-center gap-2 text-xs text-red-700">
+                    <span className="material-symbols-outlined text-base flex-shrink-0">error</span>
+                    <span className="truncate">{connectionError}</span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => reconnect()}
+                    className="flex-shrink-0 px-3 py-1 text-xs font-medium bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
+                  >
+                    Kết nối lại
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  onClick={() => reconnect()}
-                  className="flex-shrink-0 px-3 py-1 text-xs font-medium bg-red-600 text-white rounded-full hover:bg-red-700 transition-colors"
-                >
-                  Kết nối lại
-                </button>
+                {wsUrl && (
+                  <div className="text-[10px] font-mono text-red-600/70 truncate">
+                    Đang cố kết nối tới: <span className="select-all">{wsUrl}</span>
+                  </div>
+                )}
               </div>
             )}
             {/* Chat Header */}
