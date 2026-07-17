@@ -62,6 +62,7 @@ export default function ChatInbox() {
 
   const { isConnected, sendMessage: wsSendMessage } = useChatWebSocket({
     conversationId: selectedConversation?.id,
+    enabled: Boolean(selectedConversation),
     onMessage: handleNewMessage,
   });
 
@@ -451,27 +452,35 @@ export default function ChatInbox() {
                   Hội thoại đã kết thúc. Nhấn "Mở lại" để tiếp tục.
                 </div>
               ) : (
-                <div className="flex items-center gap-3">
-                  <input
-                    type="text"
-                    value={inputValue}
-                    onChange={(e) => setInputValue(e.target.value)}
-                    onKeyDown={handleKeyDown}
-                    placeholder="Nhập tin nhắn..."
-                    disabled={isSending || !isConnected}
-                    className="flex-1 px-4 py-3 bg-surface-container rounded-full text-sm border border-outline/20 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all disabled:opacity-50"
-                  />
-                  <button
-                    onClick={() => void handleSend()}
-                    disabled={!inputValue.trim() || isSending || !isConnected}
-                    className="w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50"
-                  >
-                    {isSending ? (
-                      <LoaderCircle className="w-5 h-5 animate-spin" />
-                    ) : (
-                      <span className="material-symbols-outlined">send</span>
-                    )}
-                  </button>
+                <div className="space-y-2">
+                  {!isConnected && (
+                    <div className="flex items-center justify-center gap-2 text-xs text-on-surface-variant">
+                      <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
+                      Đang kết nối lại với máy chủ...
+                    </div>
+                  )}
+                  <div className="flex items-center gap-3">
+                    <input
+                      type="text"
+                      value={inputValue}
+                      onChange={(e) => setInputValue(e.target.value)}
+                      onKeyDown={handleKeyDown}
+                      placeholder={isConnected ? "Nhập tin nhắn..." : "Đang kết nối..."}
+                      disabled={isSending || !isConnected}
+                      className="flex-1 px-4 py-3 bg-surface-container rounded-full text-sm border border-outline/20 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all disabled:opacity-50"
+                    />
+                    <button
+                      onClick={() => void handleSend()}
+                      disabled={!inputValue.trim() || isSending || !isConnected}
+                      className="w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50"
+                    >
+                      {isSending ? (
+                        <LoaderCircle className="w-5 h-5 animate-spin" />
+                      ) : (
+                        <span className="material-symbols-outlined">send</span>
+                      )}
+                    </button>
+                  </div>
                 </div>
               )}
             </div>

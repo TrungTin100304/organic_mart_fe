@@ -189,7 +189,7 @@ export function useChatWebSocket({
     return () => {
       closeSocket();
     };
-  }, [connect, closeSocket, enabled]);
+  }, [connect, closeSocket, enabled, conversationId]);
 
   const sendMessage = useCallback(
     (content: string, clientMessageId?: string) => {
