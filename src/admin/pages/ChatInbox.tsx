@@ -2,6 +2,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { motion } from "motion/react";
 import { Search, LoaderCircle, Phone, X, RotateCcw, Check } from "lucide-react";
 import { useChatWebSocket, type ChatSocketMessage } from "@/hooks/useChatWebSocket";
+import { useChatPolling } from "@/hooks/useChatPolling";
 import { chatService, type ChatConversation, type ChatMessage } from "@/services/chatService";
 
 type StatusFilter = "" | "OPEN" | "CLOSED";
@@ -42,7 +43,12 @@ export default function ChatInbox() {
         createdAt: msg.createdAt ?? new Date().toISOString(),
       };
       setMessages((prev) => {
-        if (prev.some((m) => m.clientMessageId === newMsg.clientMessageId)) {
+        if (prev.some((m) => m.clientMessageId === newMsg.clientMessageId && newMsg.clientMessageId)) {
+          return prev.map((m) =>
+            m.clientMessageId === newMsg.clientMessageId && m.id === 0 ? newMsg : m
+          );
+        }
+        if (prev.some((m) => m.id === newMsg.id)) {
           return prev;
         }
         return [...prev, newMsg];
@@ -61,10 +67,43 @@ export default function ChatInbox() {
     }
   }, []);
 
-  const { isConnected, status, connectionError, wsUrl, sendMessage: wsSendMessage, reconnect } = useChatWebSocket({
+  const mergePolledMessages = useCallback((polled: ChatMessage[]) => {
+    if (!polled.length) return;
+    setMessages((prev) => {
+      const knownIds = new Set(prev.map((m) => m.id));
+      const knownClientIds = new Set(
+        prev.map((m) => m.clientMessageId).filter((id): id is string => Boolean(id))
+      );
+      const additions: ChatMessage[] = [];
+      for (const m of polled) {
+        if (m.id && knownIds.has(m.id)) continue;
+        if (m.clientMessageId && knownClientIds.has(m.clientMessageId)) continue;
+        additions.push(m);
+      }
+      if (!additions.length) return prev;
+      return [...prev, ...additions].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+    });
+  }, []);
+
+  const ws = useChatWebSocket({
     conversationId: selectedConversation?.id,
     onMessage: handleNewMessage,
   });
+
+  const polling = useChatPolling({
+    conversationId: selectedConversation?.id,
+    enabled: Boolean(selectedConversation?.id) && ws.isUnsupported,
+    intervalMs: 4000,
+    onMessage: mergePolledMessages,
+  });
+
+  const isConnected = ws.isConnected;
+  const status = ws.status;
+  const connectionError = ws.connectionError;
+  const wsUrl = ws.wsUrl;
+  const reconnect = ws.reconnect;
 
   const loadConversations = async (targetPage = 0, status = statusFilter) => {
     setLoading(true);
@@ -132,15 +171,30 @@ export default function ChatInbox() {
     };
     setMessages((prev) => [...prev, tempMsg]);
 
-    try {
-      wsSendMessage(content, tempId);
-    } catch (e) {
-      setMessages((prev) => prev.filter((m) => m.clientMessageId !== tempId));
-      setInputValue(content);
-      const errorMessage = e instanceof Error ? e.message : "Không thể gửi tin nhắn.";
-      setSendError(errorMessage);
-    } finally {
+    const finalize = (err?: string) => {
+      if (err) {
+        setMessages((prev) => prev.filter((m) => m.clientMessageId !== tempId));
+        setInputValue(content);
+        setSendError(err);
+      }
       setIsSending(false);
+    };
+
+    try {
+      if (ws.isConnected && !ws.isUnsupported) {
+        ws.sendMessage(content, tempId);
+        finalize();
+        return;
+      }
+
+      // REST fallback when WebSocket is unavailable
+      const saved = await chatService.adminSendMessage(selectedConversation.id, content, tempId);
+      setMessages((prev) =>
+        prev.map((m) => (m.clientMessageId === tempId ? { ...m, ...saved } : m))
+      );
+      finalize();
+    } catch (e) {
+      finalize(e instanceof Error ? e.message : "Không thể gửi tin nhắn.");
     }
   };
 
@@ -241,8 +295,10 @@ export default function ChatInbox() {
             <div className="flex items-center gap-1">
               <span
                 className={`w-2 h-2 rounded-full ${
-                  status === "open"
+                  status === "open" && !ws.isUnsupported
                     ? "bg-green-500 animate-pulse"
+                    : ws.isUnsupported && polling.status === "open"
+                    ? "bg-blue-500 animate-pulse"
                     : status === "connecting"
                     ? "bg-yellow-500 animate-pulse"
                     : status === "error"
@@ -252,7 +308,9 @@ export default function ChatInbox() {
                 title={connectionError || undefined}
               />
               <span className="text-xs text-on-surface-variant">
-                {status === "open"
+                {ws.isUnsupported && polling.status === "open"
+                  ? "Đang đồng bộ"
+                  : status === "open"
                   ? "Online"
                   : status === "connecting"
                   ? "Đang kết nối..."
@@ -514,7 +572,7 @@ export default function ChatInbox() {
                       </button>
                     </div>
                   )}
-                  {status !== "open" && (
+                  {(status !== "open" || ws.isUnsupported) && !(ws.isUnsupported && polling.status === "open") && (
                     <div className="flex items-center justify-center gap-2 text-xs text-on-surface-variant">
                       <LoaderCircle className="w-3.5 h-3.5 animate-spin" />
                       {status === "connecting"
@@ -534,18 +592,18 @@ export default function ChatInbox() {
                       }}
                       onKeyDown={handleKeyDown}
                       placeholder={
-                        status === "open"
+                        (status === "open" && !ws.isUnsupported) || (ws.isUnsupported && polling.status === "open")
                           ? "Nhập tin nhắn..."
                           : status === "connecting"
                           ? "Đang kết nối..."
                           : "Chưa kết nối - không thể gửi"
                       }
-                      disabled={isSending || status !== "open"}
+                      disabled={isSending || !((status === "open" && !ws.isUnsupported) || (ws.isUnsupported && polling.status === "open"))}
                       className="flex-1 px-4 py-3 bg-surface-container rounded-full text-sm border border-outline/20 focus:border-primary focus:ring-1 focus:ring-primary/30 outline-none transition-all disabled:opacity-50 disabled:cursor-not-allowed"
                     />
                     <button
                       onClick={() => void handleSend()}
-                      disabled={!inputValue.trim() || isSending || status !== "open"}
+                      disabled={!inputValue.trim() || isSending || !((status === "open" && !ws.isUnsupported) || (ws.isUnsupported && polling.status === "open"))}
                       className="w-11 h-11 rounded-full bg-primary text-white flex items-center justify-center hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
                     >
                       {isSending ? (

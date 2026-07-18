@@ -1,4 +1,4 @@
-import { ApiRequestError, apiRequest } from "./apiClient";
+import { ApiRequestError, apiRequest, toJsonBody } from "./apiClient";
 import type { ApiResponse } from "./apiClient";
 
 const TRANSIENT_CONVERSATION_ERROR_STATUSES = new Set([0, 408, 425, 429, 500, 502, 503, 504]);
@@ -154,6 +154,24 @@ export const chatService = {
     );
   },
 
+  sendMessage: async (
+    conversationId: number,
+    content: string,
+    clientMessageId?: string
+  ): Promise<ChatMessage> => {
+    return apiRequest<ChatMessage>(
+      `/chat/conversations/${conversationId}/messages`,
+      {
+        method: "POST",
+        body: toJsonBody({
+          content,
+          clientMessageId: clientMessageId ?? null,
+        }),
+        requireAuth: true,
+      }
+    );
+  },
+
   markAsRead: async (conversationId: number): Promise<void> => {
     return apiRequest<void>(`/chat/conversations/${conversationId}/read`, {
       method: "PATCH",
@@ -185,6 +203,24 @@ export const chatService = {
     return apiRequest<PagedResponse<ChatMessage>>(
       `/admin/chat/conversations/${conversationId}/messages?page=${page}&size=${size}`,
       { requireAuth: true }
+    );
+  },
+
+  adminSendMessage: async (
+    conversationId: number,
+    content: string,
+    clientMessageId?: string
+  ): Promise<ChatMessage> => {
+    return apiRequest<ChatMessage>(
+      `/admin/chat/conversations/${conversationId}/messages`,
+      {
+        method: "POST",
+        body: toJsonBody({
+          content,
+          clientMessageId: clientMessageId ?? null,
+        }),
+        requireAuth: true,
+      }
     );
   },
 

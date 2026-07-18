@@ -31,6 +31,7 @@ interface UseChatWebSocketReturn {
   status: ChatConnectionStatus;
   connectionError: string | null;
   wsUrl: string | null;
+  isUnsupported: boolean;
   sendMessage: (content: string, clientMessageId?: string) => void;
   reconnect: () => void;
   disconnect: () => void;
@@ -71,6 +72,7 @@ export function useChatWebSocket({
   const [status, setStatus] = useState<ChatConnectionStatus>("closed");
   const [connectionError, setConnectionError] = useState<string | null>(null);
   const [currentWsUrl, setCurrentWsUrl] = useState<string | null>(null);
+  const [isUnsupported, setIsUnsupported] = useState(false);
 
   const isConnected = status === "open";
 
@@ -218,25 +220,28 @@ export function useChatWebSocket({
         handshakeEstablished,
       });
 
-      if (shouldReportError) {
-        const message = `WebSocket đóng trước khi kết nối được thiết lập (code=${event.code}). ${
-          event.code === 1006 ? "Có thể do URL backend sai (kiểm tra VITE_WS_URL), CORS, sai token, hoặc backend từ chối." :
-          event.code === 1002 ? "Giao thức không hợp lệ." :
-          event.code === 1015 ? "TLS handshake thất bại." :
-          ""
-        }`;
-        setStatus("error");
-        setConnectionError(message);
-        onErrorRef.current?.(message);
-        onDisconnectRef.current?.();
-        return;
+    if (shouldReportError) {
+      const message = `WebSocket đóng trước khi kết nối được thiết lập (code=${event.code}). ${
+        event.code === 1006 ? "Có thể do URL backend sai (kiểm tra VITE_WS_URL), CORS, sai token, hoặc proxy/CDN (vd Cloudflare) chặn upgrade WebSocket." :
+        event.code === 1002 ? "Giao thức không hợp lệ." :
+        event.code === 1015 ? "TLS handshake thất bại." :
+        ""
+      }`;
+      setStatus("error");
+      setConnectionError(message);
+      onErrorRef.current?.(message);
+      onDisconnectRef.current?.();
+      if (event.code === 1006) {
+        setIsUnsupported(true);
       }
+      return;
+    }
 
-      if (intentionallyClosed) {
-        setStatus("closed");
-        onDisconnectRef.current?.();
-        return;
-      }
+    if (intentionallyClosed) {
+      setStatus("closed");
+      onDisconnectRef.current?.();
+      return;
+    }
 
       if (shouldReconnect) {
         setStatus("connecting");
@@ -310,6 +315,7 @@ export function useChatWebSocket({
 
   const reconnect = useCallback(() => {
     reconnectAttemptsRef.current = 0;
+    setIsUnsupported(false);
     closeSocket();
     if (enabledRef.current) {
       connect();
@@ -321,6 +327,7 @@ export function useChatWebSocket({
     status,
     connectionError,
     wsUrl: currentWsUrl,
+    isUnsupported,
     sendMessage,
     reconnect,
     disconnect,

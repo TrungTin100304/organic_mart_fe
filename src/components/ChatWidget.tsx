@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { useChatWebSocket, type ChatSocketMessage } from "@/hooks/useChatWebSocket";
+import { useChatPolling } from "@/hooks/useChatPolling";
 import { chatService, type ChatConversation, type ChatMessage } from "@/services/chatService";
 
 const getMessageTimestamp = (msg: ChatMessage) =>
@@ -38,7 +39,12 @@ export default function ChatWidget({ isOpen, onClose }: ChatWidgetProps) {
         createdAt: msg.createdAt ?? new Date().toISOString(),
       };
       setMessages((prev) => {
-        if (prev.some((m) => m.clientMessageId === newMsg.clientMessageId)) {
+        if (prev.some((m) => m.clientMessageId === newMsg.clientMessageId && newMsg.clientMessageId)) {
+          return prev.map((m) =>
+            m.clientMessageId === newMsg.clientMessageId && m.id === 0 ? newMsg : m
+          );
+        }
+        if (prev.some((m) => m.id === newMsg.id)) {
           return prev;
         }
         return [...prev, newMsg];
@@ -46,12 +52,49 @@ export default function ChatWidget({ isOpen, onClose }: ChatWidgetProps) {
     }
   }, []);
 
-  const { isConnected, sendMessage: wsSendMessage } = useChatWebSocket({
+  const mergePolledMessages = useCallback((polled: ChatMessage[]) => {
+    if (!polled.length) return;
+    setMessages((prev) => {
+      const knownIds = new Set(prev.map((m) => m.id));
+      const knownClientIds = new Set(
+        prev.map((m) => m.clientMessageId).filter((id): id is string => Boolean(id))
+      );
+      const additions: ChatMessage[] = [];
+      for (const m of polled) {
+        if (m.id && knownIds.has(m.id)) continue;
+        if (m.clientMessageId && knownClientIds.has(m.clientMessageId)) continue;
+        additions.push(m);
+      }
+      if (!additions.length) return prev;
+      return [...prev, ...additions].sort(
+        (a, b) => new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime()
+      );
+    });
+  }, []);
+
+  const ws = useChatWebSocket({
     conversationId: conversation?.id,
     enabled: isOpen && Boolean(conversation?.id),
     onMessage: handleNewMessage,
     onError: (err) => setError(err),
   });
+
+  const polling = useChatPolling({
+    conversationId: conversation?.id,
+    enabled: isOpen && Boolean(conversation?.id) && ws.isUnsupported,
+    intervalMs: 4000,
+    onMessage: mergePolledMessages,
+    onError: (err) => setError(err),
+  });
+
+  const isConnected = ws.isConnected;
+  const transportMode: "ws" | "polling" | "offline" = ws.isUnsupported
+    ? polling.status === "open"
+      ? "polling"
+      : "offline"
+    : ws.isConnected
+    ? "ws"
+    : "offline";
 
   useEffect(() => {
     const initChat = async () => {
@@ -110,14 +153,30 @@ export default function ChatWidget({ isOpen, onClose }: ChatWidgetProps) {
     };
     setMessages((prev) => [...prev, tempMsg]);
 
-    try {
-      wsSendMessage(content, tempId);
-    } catch (e) {
-      setMessages((prev) => prev.filter((m) => m.clientMessageId !== tempId));
-      setInputValue(content);
-      setError(e instanceof Error ? e.message : "Failed to send message");
-    } finally {
+    const finalize = (err?: string) => {
+      if (err) {
+        setMessages((prev) => prev.filter((m) => m.clientMessageId !== tempId));
+        setInputValue(content);
+        setError(err);
+      }
       setIsSending(false);
+    };
+
+    try {
+      if (ws.isConnected && !ws.isUnsupported) {
+        ws.sendMessage(content, tempId);
+        finalize();
+        return;
+      }
+
+      // Fallback to REST when WebSocket is unavailable (e.g. Cloudflare blocks upgrade)
+      const saved = await chatService.sendMessage(conversation.id, content, tempId);
+      setMessages((prev) =>
+        prev.map((m) => (m.clientMessageId === tempId ? { ...m, ...saved } : m))
+      );
+      finalize();
+    } catch (e) {
+      finalize(e instanceof Error ? e.message : "Failed to send message");
     }
   };
 
@@ -177,10 +236,20 @@ export default function ChatWidget({ isOpen, onClose }: ChatWidgetProps) {
                 <h3 className="font-semibold text-sm">Hỗ trợ Organic Mart</h3>
                 <div className="flex items-center gap-1.5">
                   <span
-                    className={`w-2 h-2 rounded-full ${isConnected ? "bg-green-400" : "bg-yellow-400"}`}
+                    className={`w-2 h-2 rounded-full ${
+                      transportMode === "ws"
+                        ? "bg-green-400"
+                        : transportMode === "polling"
+                        ? "bg-blue-400"
+                        : "bg-yellow-400"
+                    }`}
                   />
                   <span className="text-xs opacity-90">
-                    {isConnected ? "Đang kết nối" : "Kết nối..."}
+                    {transportMode === "ws"
+                      ? "Trực tuyến"
+                      : transportMode === "polling"
+                      ? "Đang đồng bộ"
+                      : "Đang kết nối..."}
                   </span>
                 </div>
               </div>
