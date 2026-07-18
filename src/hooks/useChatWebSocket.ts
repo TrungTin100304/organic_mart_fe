@@ -169,6 +169,8 @@ export function useChatWebSocket({
       window.clearTimeout(connectTimeoutId);
       handshakeEstablished = true;
       reconnectAttemptsRef.current = 0;
+      // eslint-disable-next-line no-console
+      console.info("[useChatWebSocket] OPEN");
       setStatus("open");
       setConnectionError(null);
       onConnectRef.current?.();
@@ -178,6 +180,8 @@ export function useChatWebSocket({
       if (socketIdRef.current !== socketId) return;
       try {
         const message: ChatSocketMessage = JSON.parse(event.data);
+        // eslint-disable-next-line no-console
+        console.debug("[useChatWebSocket] MSG type=" + message.type);
         const activeConversationId = conversationIdRef.current;
         if (message.conversationId === activeConversationId || activeConversationId === undefined) {
           onMessageRef.current?.(message);
@@ -190,6 +194,8 @@ export function useChatWebSocket({
     ws.onerror = () => {
       if (socketIdRef.current !== socketId) return;
       window.clearTimeout(connectTimeoutId);
+      // eslint-disable-next-line no-console
+      console.warn("[useChatWebSocket] ERROR handshakeEstablished=" + handshakeEstablished);
       const message = handshakeEstablished
         ? "Mất kết nối WebSocket giữa chừng."
         : "Không thể kết nối tới máy chủ chat. Kiểm tra cấu hình backend hoặc trạng thái Render service.";
@@ -198,6 +204,8 @@ export function useChatWebSocket({
     };
 
     ws.onclose = (event) => {
+      // eslint-disable-next-line no-console
+      console.info("[useChatWebSocket] CLOSE code=" + event.code + " wasClean=" + event.wasClean);
       if (socketIdRef.current === socketId) {
         window.clearTimeout(connectTimeoutId);
       }

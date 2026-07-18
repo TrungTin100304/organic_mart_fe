@@ -82,14 +82,11 @@ export const resolveWsUrl = ({
   const explicitUrl = configuredUrl?.trim();
   if (explicitUrl) return explicitUrl.replace(/\/+$/, "");
 
-  const configuredProxyTarget = proxyTarget?.trim();
-  if (isDev && configuredProxyTarget) {
+  if (isDev) {
     return toWsChatUrl(appOrigin || "http://localhost:3000");
   }
 
-  return toWsChatUrl(
-    configuredProxyTarget || (isDev ? DEFAULT_LOCAL_BACKEND_ORIGIN : DEFAULT_BACKEND_ORIGIN)
-  );
+  return toWsChatUrl(DEFAULT_BACKEND_ORIGIN);
 };
 
 export const getWsUrl = () => {
