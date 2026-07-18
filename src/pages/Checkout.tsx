@@ -43,11 +43,23 @@ import {
 } from "../services/deliveryService";
 import type { Address } from "../types/user";
 import type { User } from "../types/user";
+import { ApiRequestError } from "../services/apiClient";
 
 const FADE_IN = { initial: { opacity: 0, y: 20 }, animate: { opacity: 1, y: 0 }, transition: { duration: 0.5 } };
 
-const getErrorMessage = (error: unknown, fallback: string) =>
-  error instanceof Error ? error.message : fallback;
+const getErrorMessage = (error: unknown, fallback: string): string => {
+  if (error instanceof Error) {
+    if (error instanceof ApiRequestError) {
+      const reason =
+        (error.payload as { message?: string } | null)?.message ||
+        error.message ||
+        fallback;
+      return `[${error.status}] ${reason}`;
+    }
+    return error.message || fallback;
+  }
+  return fallback;
+};
 
 const DEFAULT_WEIGHT_KG = 1;
 
